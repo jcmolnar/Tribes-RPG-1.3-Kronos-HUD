@@ -1,0 +1,6 @@
+# plugin build artifacts (the prebuilt DLL is committed under client/Plugins/)
+*.obj
+*.exp
+*.lib
+*.ilk
+*.pdb
