@@ -605,7 +605,7 @@ function kronos::info_onrender()
 
 	// Line 3: Gold
 	glColor4ub(255, 210, 75, 225);
-	vhud::render_text("line3_pos", "Verdana", "info_label_size", $GLEX_SMOOTH, "Gold " @ $KH::gold);
+	vhud::render_text("line3_pos", "Verdana", "info_label_size", $GLEX_SMOOTH, "Gold " @ KronosShop::commafy($KH::gold));
 
 	// Line 4: Zone
 	glColor4ub(145, 175, 145, 180);
