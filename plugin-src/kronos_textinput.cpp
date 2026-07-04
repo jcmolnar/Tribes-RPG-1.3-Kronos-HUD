@@ -34,6 +34,7 @@
 // binary.
 //============================================================================
 #include <windows.h>
+#pragma comment(lib, "user32.lib")   // wheel seam: GetForegroundWindow/SetWindowLongA/CallWindowProcA
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -169,6 +170,57 @@ extern "C" char* __cdecl c_glPollHotkey(int argc, char** argv) {
     return (char*)"";
 }
 
+// ---- mouse wheel seam: subclass the game window's wndproc and accumulate
+// WM_MOUSEWHEEL deltas; the script drains whole notches per frame via
+// glPollWheel() ("+n" = up, "-n" = down, "" = none) and routes them to what's
+// under the GUI cursor (chat history, shop/bank panes). Same queue-and-poll
+// pattern as the key seam: the wndproc only adds to an int, ZERO engine calls.
+// The subclass is installed LAZILY from the first glPollWheel call (script
+// context, main thread, window guaranteed to exist) and re-checked each poll
+// in case the engine recreates its window on a resolution change.
+static volatile int g_wheelAcc = 0;             // raw deltas (multiples of 120)
+static WNDPROC g_wheelOrigProc = 0;
+static HWND    g_wheelHwnd = 0;
+
+static LRESULT CALLBACK wheelWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == WM_MOUSEWHEEL) {
+        g_wheelAcc += (int)(short)HIWORD(wp);
+        return 0;
+    }
+    return CallWindowProcA(g_wheelOrigProc, hwnd, msg, wp, lp);
+}
+
+static void wheelEnsureHook() {
+    HWND fg = GetForegroundWindow();
+    if (!fg || fg == g_wheelHwnd) return;
+    DWORD pid = 0; GetWindowThreadProcessId(fg, &pid);
+    if (pid != GetCurrentProcessId()) return;   // only ever subclass OUR window
+    if (g_wheelHwnd && g_wheelOrigProc) {       // window changed (res switch): drop the old subclass
+        SetWindowLongA(g_wheelHwnd, GWL_WNDPROC, (LONG)g_wheelOrigProc);
+        g_wheelOrigProc = 0;
+    }
+    g_wheelHwnd = fg;
+    g_wheelOrigProc = (WNDPROC)SetWindowLongA(fg, GWL_WNDPROC, (LONG)wheelWndProc);
+    flog("wheel: subclassed hwnd %p", (void*)fg);
+}
+
+// ---- glMouseRMB(): "1" while the right mouse button is physically down, "" else.
+// Script edge-detects per frame; GetAsyncKeyState reads hardware state directly.
+extern "C" char* __cdecl c_glMouseRMB(int argc, char** argv) {
+    return (GetAsyncKeyState(VK_RBUTTON) & 0x8000) ? (char*)"1" : (char*)"";
+}
+
+// ---- glPollWheel(): whole wheel notches since the last poll, signed; "" if none.
+extern "C" char* __cdecl c_glPollWheel(int argc, char** argv) {
+    static char buf[16];
+    wheelEnsureHook();
+    int ticks = g_wheelAcc / 120;               // WHEEL_DELTA notches only
+    if (!ticks) return (char*)"";
+    g_wheelAcc -= ticks * 120;                  // keep the sub-notch remainder
+    _snprintf(buf, sizeof(buf), "%d", ticks); buf[sizeof(buf)-1] = 0;
+    return buf;
+}
+
 // engine command handler ABI: argc in ECX, argv on stack ([ESP+4]); ret 4; EAX=char*
 #define HANDLER(NAME, IMPL) __declspec(naked) void NAME(){ \
     __asm mov eax,[esp+4]   /*argv*/ \
@@ -181,6 +233,8 @@ HANDLER(h_glTextInput, c_glTextInput)
 HANDLER(h_glTextPoll,  c_glTextPoll)
 HANDLER(h_glSetTalkKey, c_glSetTalkKey)
 HANDLER(h_glPollHotkey, c_glPollHotkey)
+HANDLER(h_glPollWheel,  c_glPollWheel)
+HANDLER(h_glMouseRMB,   c_glMouseRMB)
 
 // regCmd(name, handler): engine getNumClients StringCallback registration, byte-for-byte.
 __declspec(naked) void regCmd(const char* /*name*/, void* /*handler*/) {
@@ -204,7 +258,9 @@ extern "C" void __cdecl doRegister() {
     regCmd("glTextPoll",   (void*)&h_glTextPoll);
     regCmd("glSetTalkKey", (void*)&h_glSetTalkKey);
     regCmd("glPollHotkey", (void*)&h_glPollHotkey);
-    flog("registered glTextInput + glTextPoll + glSetTalkKey + glPollHotkey");
+    regCmd("glPollWheel",  (void*)&h_glPollWheel);
+    regCmd("glMouseRMB",   (void*)&h_glMouseRMB);
+    flog("registered glTextInput + glTextPoll + glSetTalkKey + glPollHotkey + glPollWheel + glMouseRMB");
 }
 
 // plugin descriptor vtable[0] = init; loader calls it (desc in EAX) AFTER console ready

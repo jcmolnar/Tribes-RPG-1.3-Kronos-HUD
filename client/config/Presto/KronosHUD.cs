@@ -1060,6 +1060,14 @@ if($KH::hideStockWeapon == "")
 
 function kronos::applyStockHudVisibility()
 {
+	// Only replace the stock HUDs once a Kronos server is actually pushing data.
+	// This function is called EVERY frame from onPreDraw, so gating on $KH::hasData
+	// makes the HUD self-disable on non-Kronos servers: the stock health/energy/weapon
+	// bars stay visible instead of being hidden with empty Kronos bars over them. As
+	// soon as a Kronos server sends remoteKronosHUD ($KH::hasData=true) the next frame
+	// hides them. showStockHuds() also clears hasData so a manual restore sticks.
+	if(!$KH::hasData)
+		return;
 	if($KH::hideStockHealth)
 		Control::SetVisible(healthHud, false);
 	if($KH::hideStockEnergy)
@@ -1100,6 +1108,12 @@ Event::Attach(eventScreenModeChanged, "KronosMenu::applyChatPos();", attachKrono
 // guard against it being absent so a HUD-only setup still works.
 function ScriptGL::playGui::onPreDraw(%dimensions)
 {
+	// Re-assert stock-HUD + stock-chat hiding EVERY frame (ported from 1.40):
+	// the engine WAKES the stock bars when the player SPAWNS, which happens
+	// AFTER eventGuiOpen, so the one-shot hide gets undone on spawn/respawn.
+	// SetVisible(false) on an already-hidden control is a cheap no-op.
+	kronos::applyStockHudVisibility();
+	KronosChat::applyVisibility();
 	if($KM::enabled != "")
 		vhud::render( KronosMenu::screenDim(%dimensions) );
 	else

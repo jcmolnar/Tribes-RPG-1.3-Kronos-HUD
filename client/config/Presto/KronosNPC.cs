@@ -73,6 +73,95 @@ function remoteKNPCClose(%server)
 	if(%server != 2048)
 		return;
 	$KNPC::open = "";
+	if($KNPC::keyCap)   // drop our Esc/Tab key capture if the server closes us
+	{
+		glTextInput(0);
+		$KNPC::keyCap = false;
+	}
+}
+
+// Close the dialogue (Goodbye / Esc / Tab) - tells the server and drops key capture.
+function KronosNPC::close()
+{
+	$KNPC::open = "";
+	remoteEval(2048, KNPCClose);
+	if($KNPC::keyCap)
+	{
+		glTextInput(0);
+		$KNPC::keyCap = false;
+	}
+}
+
+// Per-frame key pump: while the dialogue is open AND the cursor is up (so the player
+// is interacting), capture keys via the glTextInput seam (kronos_textinput.dll) so
+// Esc / Tab close the window like the other Kronos UI menus. We only grab keys once
+// the cursor is up, so we never eat the TAB used to raise the cursor in the first
+// place. Called every frame from the onPostDraw chain.
+function KronosNPC::pump()
+{
+	if($KNPC::open == "")
+	{
+		if($KNPC::keyCap)
+		{
+			glTextInput(0);
+			$KNPC::keyCap = false;
+		}
+		return;
+	}
+	// A focused text field (chat composer / bank amount) owns the key seam -
+	// defer to it instead of eating its keystrokes. KronosInput::focus already
+	// turned the seam on; when the field blurs (Enter/Esc) the seam drops and
+	// the next frame re-grabs it for Esc/Tab close. Without this, typing in
+	// the chat composer was dead while an NPC dialogue was open (this pump
+	// drained the queue first and discarded the characters).
+	if(KronosInput::anyFocused())
+	{
+		$KNPC::keyCap = false;
+		return;
+	}
+	if($KM::mouseOn && !$KNPC::keyCap)
+	{
+		glTextInput(1);
+		$KNPC::keyCap = true;
+	}
+	if(!$KM::mouseOn && $KNPC::keyCap)
+	{
+		glTextInput(0);
+		$KNPC::keyCap = false;
+		return;
+	}
+	if(!$KNPC::keyCap)
+		return;
+	%guard = 0;
+	while(%guard < 100)
+	{
+		%guard++;
+		%ev = glTextPoll();
+		if(String::len(%ev) < 1)
+			return;
+		%kind = String::getSubStr(%ev, 0, 1);
+		%val  = String::getSubStr(%ev, 1, 99999);
+		if(String::Compare(%kind, "c") != 0)   // special key (Esc=1, Tab=15)
+		{
+			if(%val == 1 || %val == 15)
+			{
+				KronosNPC::close();
+				return;
+			}
+		}
+		else
+		{
+			// number keys pick the numbered options (the rows render as
+			// "1. keyword"); anything else is ignored while the window is up
+			if(%val >= 1 && %val <= $KNPC::optCount
+				&& String::findSubStr("123456789", %val) != -1)
+			{
+				remoteEval(2048, say, 0, "#say " @ $KNPC::opt[%val - 1]);
+				$KNPC::optCount = 0;   // same advance as a click (KNPCOpts repopulates)
+				return;
+			}
+		}
+	}
 }
 
 // ============================================
@@ -221,7 +310,7 @@ function KronosNPC::render(%sw, %sh)
 
 	// ---- text ----
 	glColor4ub(235, 240, 255, 245);
-	glSetFont("Verdana", %fontTitle, $GLEX_SMOOTH, 4);
+	glSetFont("Verdana", %fontTitle, $GLEX_SMOOTH, 1);   // glow 1: match the other panel headers
 	glDrawString(%x + %pad, %y + floor(%titleH * 0.16), $KNPC::name);
 
 	glSetFont("Verdana", %fontText, $GLEX_SMOOTH, 0);
@@ -273,9 +362,7 @@ function KronosNPC::handleClick(%x, %y)
 	}
 	else
 	{
-		// Goodbye
-		$KNPC::open = "";
-		remoteEval(2048, KNPCClose);
+		KronosNPC::close();   // Goodbye
 	}
 	return true;
 }
@@ -306,6 +393,7 @@ function KronosNPC::test()
 // Initialize
 // ============================================
 $KNPC::open = "";
+$KNPC::keyCap = false;   // true while we hold the glTextInput seam for Esc/Tab close
 $KNPC::name = "";
 $KNPC::lineN = 0;
 $KNPC::optCount = 0;

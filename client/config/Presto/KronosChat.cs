@@ -648,6 +648,7 @@ function KronosChat::saveFilterPrefs()
 		}
 	}
 	$pref::Kronos::chatHide = %list;
+	KronosMenu::savePrefs();
 }
 
 function KronosChat::applyFilterPrefs()
@@ -705,6 +706,7 @@ function KronosChat::setLines(%n)
 	%lineH = %font + floor(%font * 0.3);
 	%pad = floor(%font * 0.4);
 	$pref::Kronos::chatH = ((%n * %lineH) + (%pad * 2)) / %sh;
+	KronosMenu::savePrefs();
 	echo("KronosChat: window sized to fit " @ %n @ " lines");
 }
 
@@ -723,6 +725,7 @@ function KronosChat::setFont(%frac)
 		%frac = 0.040;
 	$pref::Kronos::chatFontH = %frac;
 	$KC::lastFont = -1;   // force a rewrap
+	KronosMenu::savePrefs();
 	echo("KronosChat: text size = " @ %frac @ " of screen height");
 }
 
@@ -748,6 +751,7 @@ function KronosChat::setWidth(%frac)
 	}
 	$pref::Kronos::chatW = %frac;
 	$KC::lastW = -1;   // force a rewrap
+	KronosMenu::savePrefs();
 	echo("KronosChat: width = " @ %frac @ " of screen");
 }
 
@@ -756,6 +760,7 @@ function KronosChat::enable()
 	$pref::Kronos::chatEnabled = true;
 	KronosChat::applyVisibility();
 	KronosChat::bindTalkKey();    // Y -> composer
+	KronosMenu::savePrefs();
 	echo("KronosChat: custom chat overlay ON (stock chat hidden)");
 }
 
@@ -764,6 +769,7 @@ function KronosChat::disable()
 	$pref::Kronos::chatEnabled = false;
 	KronosChat::applyVisibility();
 	KronosChat::bindTalkKey();    // Y -> stock chat
+	KronosMenu::savePrefs();
 	echo("KronosChat: custom chat overlay OFF (stock chat restored)");
 }
 

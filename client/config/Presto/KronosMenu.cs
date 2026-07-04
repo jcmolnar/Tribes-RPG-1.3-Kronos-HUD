@@ -258,9 +258,10 @@ function onMouseActive(%isActive)
 		KronosMenu::dragEnd();
 		$KC::scroll = 0;           // chat jumps back to newest when cursor hides
 
-		// drop chat-composer keyboard capture if it was open via a click
-		// (a key-bound beginSay during gameplay manages its own blur on Enter/Esc)
-		if(KronosInput::isFocused("kchat"))
+		// drop any open text field (chat composer / bank amount / search) when
+		// the cursor hides - it was opened via a click and has no cursor to
+		// dismiss it (a key-bound beginSay manages its own blur on Enter/Esc)
+		if(KronosInput::anyFocused())
 			KronosInput::blur();
 
 		// cursor gone (TAB / score closed) - dismiss an open NPC dialogue
@@ -312,6 +313,10 @@ function onMouseLMB(%isDown)
 
 	// NPC dialogue option rows (click) - before the drag handles
 	if($KM::mouseOn && $KM::enabled && KronosNPC::handleClick($KM::mouseX, $KM::mouseY))
+		return;
+
+	// session-stats panel chips (Reset / hide) - before its move handle
+	if($KM::mouseOn && $KM::enabled && KronosStats::handleClick($KM::mouseX, $KM::mouseY))
 		return;
 
 	// Grab a panel by its title bar to move it (works in menu and shop)
@@ -693,7 +698,7 @@ function KronosMenu::render(%dimensions)
 	// ---- Pass 2: all text ----
 	// menu title + items
 	glColor4ub(235, 240, 255, 245);
-	glSetFont("Verdana", %fontTitle, $GLEX_SMOOTH, 4);
+	glSetFont("Verdana", %fontTitle, $GLEX_SMOOTH, 1);
 	glDrawString($KML::mx + %pad, %y + floor(%titleH * 0.16), $KM::title);
 
 	glSetFont("Verdana", %fontItemM, $GLEX_SMOOTH, 0);
@@ -710,7 +715,7 @@ function KronosMenu::render(%dimensions)
 
 	// player list title + rows
 	glColor4ub(235, 240, 255, 245);
-	glSetFont("Verdana", %fontTitle, $GLEX_SMOOTH, 4);
+	glSetFont("Verdana", %fontTitle, $GLEX_SMOOTH, 1);
 	glDrawString($KML::px + %pad, $KML::plY + floor(%titleH * 0.16), "Players (" @ $KM::plTotal @ ")");
 
 	glSetFont("Verdana", %fontItem, $GLEX_SMOOTH, 0);
@@ -756,7 +761,7 @@ function KronosMenu::render(%dimensions)
 			if(%i == 1)
 			{
 				glColor4ub(170, 200, 240, 245);
-				glSetFont("Verdana", %fontInfo, $GLEX_SMOOTH, 4);
+				glSetFont("Verdana", %fontInfo, $GLEX_SMOOTH, 1);
 			}
 			else
 			{
@@ -899,7 +904,7 @@ function KronosMenu::renderSlider(%sw, %sh)
 
 	// ---- text pass ----
 	glColor4ub(235, 240, 255, 240);
-	glSetFont("Verdana", %font, $GLEX_SMOOTH, 4);
+	glSetFont("Verdana", %font, $GLEX_SMOOTH, 1);
 	glDrawString(%x + %pad, %y + floor(%pad * 0.5), "UI Scale  " @ floor((%val * 100) + 0.5) @ "%");
 }
 
@@ -1020,6 +1025,13 @@ function KronosMenu::dragHit(%x, %y)
 		&& %y >= $Panel::knpcY && %y < $Panel::knpcY + $Panel::knpcTH)
 		return "knpcwin";
 
+	// session-stats panel - whole panel is the move handle (its chips are
+	// clicked earlier in onMouseLMB)
+	if($Panel::kstatsShown
+		&& %x >= $Panel::kstatsX && %x < $Panel::kstatsX + $Panel::kstatsW
+		&& %y >= $Panel::kstatsY && %y < $Panel::kstatsY + $Panel::kstatsH)
+		return "kstats";
+
 	return "";
 }
 
@@ -1076,6 +1088,11 @@ function KronosMenu::dragStart(%id, %x, %y)
 		$Drag::dx = %x - $Panel::knpcX;
 		$Drag::dy = %y - $Panel::knpcY;
 	}
+	else if(%id == "kstats")
+	{
+		$Drag::dx = %x - $Panel::kstatsX;
+		$Drag::dy = %y - $Panel::kstatsY;
+	}
 }
 
 function KronosMenu::dragMove(%x, %y)
@@ -1123,6 +1140,11 @@ function KronosMenu::dragMove(%x, %y)
 	{
 		$pref::Kronos::npcX = %fx;
 		$pref::Kronos::npcY = %fy;
+	}
+	else if($Drag::id == "kstats")
+	{
+		$pref::Kronos::statsX = %fx;
+		$pref::Kronos::statsY = %fy;
 	}
 	else if($Drag::id == "kchatsz")
 	{
@@ -1225,10 +1247,24 @@ function KronosMenu::dragMove(%x, %y)
 	}
 }
 
+// Persist ALL prefs to disk NOW, instead of waiting for onExit() - which is skipped
+// on a hard close / alt-F4 / crash, the usual reason HUD layout "doesn't save". Writes
+// the same config\ClientPrefs.cs the boot loads, so panel positions, UI scale, chat
+// layout, etc. survive across launches no matter how the client is closed. Called
+// only on a real change (drag release / scale / chat set), so the small file write
+// is unnoticeable. (Ported from the 1.40 KronosMenu.)
+function KronosMenu::savePrefs()
+{
+	export("pref::*", "config\\ClientPrefs.cs", false);
+}
+
 function KronosMenu::dragEnd()
 {
+	%wasDragging = $Drag::active;   // true only if a panel/slider was actually moved
 	$Drag::active = false;
 	$Drag::id = "";
+	if(%wasDragging)
+		KronosMenu::savePrefs();    // a panel moved -> persist its new position now
 }
 
 // Small "Chat" grip tab at the chat window's top-left, shown while the
@@ -1348,6 +1384,7 @@ function KronosMenu::setScale(%s)
 	}
 	$pref::Kronos::UiScale = %s;
 	echo("KronosMenu: UI scale = " @ %s @ " (1.0 = sized for " @ $pref::Kronos::UiRefH @ "p; lower = smaller)");
+	KronosMenu::savePrefs();
 }
 
 // Restore the default panel positions (and the centered info box). Leaves
@@ -1383,6 +1420,7 @@ function KronosMenu::resetLayout()
 	$pref::Kronos::sliderY = 0.015;
 
 	KronosMenu::dragEnd();
+	KronosMenu::savePrefs();
 	echo("KronosMenu: panel positions reset to defaults");
 }
 

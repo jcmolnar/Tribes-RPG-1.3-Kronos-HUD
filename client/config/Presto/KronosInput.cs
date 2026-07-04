@@ -48,6 +48,7 @@ $KIN::maxLen   = 120;
 $KIN::submitFn = "";   // eval'd on Enter
 $KIN::cancelFn = "";   // eval'd on Esc (after blur)
 $KIN::navFn    = "";   // eval'd on Up/Down as navFn(dik)
+$KIN::numeric  = false; // when true, onChar accepts digits only (amount fields)
 
 // ============================================
 // Focus / blur / query
@@ -63,7 +64,14 @@ function KronosInput::focus(%id, %initial, %submitFn, %cancelFn, %navFn, %maxLen
 	if(%maxLen == "" || %maxLen < 1)
 		%maxLen = 120;
 	$KIN::maxLen = %maxLen;
+	$KIN::numeric = false;   // default text field; callers opt into digits-only
 	glTextInput(1);   // engine: start forwarding keys to ScriptGL::onChar/onKey
+}
+
+// Restrict the focused field to digits (amount entry). Call right after focus().
+function KronosInput::setNumeric(%b)
+{
+	$KIN::numeric = %b;
 }
 
 function KronosInput::blur()
@@ -106,6 +114,10 @@ function ScriptGL::onChar(%ch)
 	if($KIN::focus == "")
 		return;
 	if(String::len($KIN::text) >= $KIN::maxLen)
+		return;
+	// digits-only field: reject any non-digit (findSubStr avoids the == numeric-
+	// coercion pitfall - a non-digit char would otherwise coerce to 0 and pass)
+	if($KIN::numeric && String::findSubStr("0123456789", %ch) == -1)
 		return;
 	%c = $KIN::caret;
 	%left  = String::getSubStr($KIN::text, 0, %c);

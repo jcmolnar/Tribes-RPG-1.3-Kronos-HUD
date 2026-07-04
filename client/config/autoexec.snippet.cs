@@ -32,3 +32,11 @@ exec("Presto\\KronosChat.cs");
 
 // Modern NPC dialogue window.
 exec("Presto\\KronosNPC.cs");
+
+// ScriptGL quick command menu (Ctrl+V) - replaces the engine chat menu that the
+// Kronos overlay's chat-hiding made invisible. Self-disables off-mod (gated on
+// $KH::hasData) so it never hijacks Ctrl+V on non-Kronos servers.
+exec("Presto\\KronosCM.cs");
+
+// Session stats panel (XP/hr, gold/hr) - client-side, draggable.
+exec("Presto\\KronosStats.cs");
