@@ -197,8 +197,15 @@ function remoteNewMenu(%server, %title)
 	$KM::measureDirty = true;
 
 	// ask the server for the player list (vanilla-safe: only clients
-	// running this script ever send the request)
-	remoteEval(2048, KMGetPlayers);
+	// running this script ever send the request). THROTTLED: menus rebuild on
+	// every selection (each skill-point click = a new menu), and re-pulling
+	// the whole roster each time wasted the reliable-stream budget the menu
+	// rows need - the refresh felt sluggish. Rosters change slowly; 3s is fresh.
+	if($KM::plReqTime == "" || (GetSimTime() - $KM::plReqTime) > 3.0)
+	{
+		$KM::plReqTime = GetSimTime();
+		remoteEval(2048, KMGetPlayers);
+	}
 }
 
 function remoteAddMenuItem(%server, %title, %code)
@@ -401,7 +408,7 @@ function KronosMenu::clickPlayer(%idx)
 // ============================================
 
 // Player list rows (KronosHUD_Server.cs remoteKMGetPlayers)
-function remoteKMPlayer(%server, %idx, %id, %lvl, %remort, %class, %name)
+function remoteKMPlayer(%server, %idx, %id, %lvl, %remort, %class, %name, %zone)
 {
 	if(%server != 2048)
 		return;
@@ -410,6 +417,7 @@ function remoteKMPlayer(%server, %idx, %id, %lvl, %remort, %class, %name)
 	$KM::plRL[%idx] = %remort;
 	$KM::plClass[%idx] = %class;
 	$KM::plName[%idx] = %name;
+	$KM::plZone[%idx] = %zone;   // location column (older servers omit it -> "")
 }
 
 function remoteKMPlayerCount(%server, %sent, %total)
@@ -504,15 +512,15 @@ function KronosMenu::render(%dimensions)
 			%fontItemM = 9;
 	}
 
-	// Player panel auto-width: measure the widest name / level / class
-	// and widen the panel so each column fits its slot (name 0-42%,
-	// level 42-74%, class 74-100%). Capped so it stays on screen.
+	// Player panel auto-width: measure the widest name / level / class /
+	// location; columns are packed from these widths below. Capped on screen.
 	if($KM::plDirty || $KM::plMeasuredFont != %fontItem)
 	{
 		glSetFont("Verdana", %fontItem, $GLEX_SMOOTH, 0);
 		%nw = 0;
 		%lw = 0;
 		%cw = 0;
+		%zw = 0;
 		for(%i = 0; %i < $KM::plCount; %i++)
 		{
 			%t = getword(glGetStringDimensions($KM::plName[%i]), 0);
@@ -527,25 +535,26 @@ function KronosMenu::render(%dimensions)
 			%t = getword(glGetStringDimensions($KM::plClass[%i]), 0);
 			if(%t > %cw)
 				%cw = %t;
+			%t = getword(glGetStringDimensions($KM::plZone[%i]), 0);
+			if(%t > %zw)
+				%zw = %t;
 		}
 		$KM::plNameW = %nw;
 		$KM::plLvW = %lw;
 		$KM::plClW = %cw;
+		$KM::plZnW = %zw;
 		$KM::plMeasuredFont = %fontItem;
 		$KM::plDirty = false;
 	}
 
-	%wp = %w;
-	%n = floor(($KM::plNameW + (%pad * 2)) / 0.42);
-	if(%n > %wp)
-		%wp = %n;
-	%n = floor(($KM::plLvW + %pad) / 0.32);
-	if(%n > %wp)
-		%wp = %n;
-	%n = floor(($KM::plClW + (%pad * 2)) / 0.26);
-	if(%n > %wp)
-		%wp = %n;
-	%wpMax = floor(%sw * 0.43);
+	// content-packed columns: each column starts right after the widest text
+	// of the previous one plus a fixed gap - no fraction slots, so long names
+	// can't overlap the next column and short ones don't leave a huge hole
+	%colGap = %pad * 2;
+	%wp = %pad + $KM::plNameW + %colGap + $KM::plLvW + %colGap + $KM::plClW + %colGap + $KM::plZnW + %pad;
+	if(%wp < %w)
+		%wp = %w;
+	%wpMax = floor(%sw * 0.60);
 	if(%wp > %wpMax)
 		%wp = %wpMax;
 	$KML::wPlayers = %wp;
@@ -719,8 +728,10 @@ function KronosMenu::render(%dimensions)
 	glDrawString($KML::px + %pad, $KML::plY + floor(%titleH * 0.16), "Players (" @ $KM::plTotal @ ")");
 
 	glSetFont("Verdana", %fontItem, $GLEX_SMOOTH, 0);
-	%lvX = $KML::px + floor(%wp * 0.42);
-	%clX = $KML::px + floor(%wp * 0.74);
+	%colGap = %pad * 2;
+	%lvX = $KML::px + %pad + $KM::plNameW + %colGap;
+	%clX = %lvX + $KM::plLvW + %colGap;
+	%znX = %clX + $KM::plClW + %colGap;
 	%iy = $KML::plRowY0;
 	if($KM::plCount < 1)
 	{
@@ -741,6 +752,9 @@ function KronosMenu::render(%dimensions)
 
 		glColor4ub(200, 210, 225, 210);
 		glDrawString(%clX, %ty, $KM::plClass[%i]);
+
+		glColor4ub(160, 210, 170, 210);
+		glDrawString(%znX, %ty, $KM::plZone[%i]);
 		%iy += %rowH;
 	}
 	if(%overflow)

@@ -170,38 +170,60 @@ extern "C" char* __cdecl c_glPollHotkey(int argc, char** argv) {
     return (char*)"";
 }
 
-// ---- mouse wheel seam: subclass the game window's wndproc and accumulate
+// ---- mouse wheel seam: a LOW-LEVEL mouse hook (WH_MOUSE_LL) accumulates
 // WM_MOUSEWHEEL deltas; the script drains whole notches per frame via
 // glPollWheel() ("+n" = up, "-n" = down, "" = none) and routes them to what's
 // under the GUI cursor (chat history, shop/bank panes). Same queue-and-poll
-// pattern as the key seam: the wndproc only adds to an int, ZERO engine calls.
-// The subclass is installed LAZILY from the first glPollWheel call (script
-// context, main thread, window guaranteed to exist) and re-checked each poll
-// in case the engine recreates its window on a resolution change.
-static volatile int g_wheelAcc = 0;             // raw deltas (multiples of 120)
-static WNDPROC g_wheelOrigProc = 0;
-static HWND    g_wheelHwnd = 0;
+// pattern as the key seam: the hook only adds to an int, ZERO engine calls.
+// WHY LL and not a wndproc subclass: the 1.3 client reads the mouse through
+// DirectInput and WM_MOUSEWHEEL never reaches the game window's wndproc, so
+// the old subclass approach saw nothing. The LL hook taps the input stream
+// BEFORE per-window routing, so it sees the wheel regardless.
+// CRITICAL: the hook must live on its OWN thread with a fast message loop.
+// LL hook callbacks run on the INSTALLING thread's message queue, and Windows
+// stalls EVERY system mouse event until that thread services it - installing
+// from the game's main thread (which pumps once per frame at best) made the
+// whole desktop's mouse crawl. The dedicated thread does nothing but
+// GetMessage, so callbacks are serviced instantly and gameplay mouse-look is
+// unaffected. Only counts ticks while OUR process is foreground.
+#ifndef WH_MOUSE_LL
+#define WH_MOUSE_LL 14                          // pre-0x0400 SDK headers
+#endif
+struct KMSLL { POINT pt; DWORD mouseData; DWORD flags; DWORD time; ULONG_PTR extra; };
 
-static LRESULT CALLBACK wheelWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
-    if (msg == WM_MOUSEWHEEL) {
-        g_wheelAcc += (int)(short)HIWORD(wp);
-        return 0;
+static volatile int g_wheelAcc = 0;             // raw deltas (multiples of 120)
+static volatile LONG g_wheelInit = 0;
+static HHOOK g_wheelHook = 0;
+static DWORD g_wheelPid = 0;
+
+static LRESULT CALLBACK wheelLLProc(int code, WPARAM wp, LPARAM lp) {
+    if (code == 0 /*HC_ACTION*/ && wp == WM_MOUSEWHEEL) {
+        DWORD pid = 0;
+        HWND fg = GetForegroundWindow();
+        if (fg) GetWindowThreadProcessId(fg, &pid);
+        if (pid == g_wheelPid)                  // ignore scrolls while alt-tabbed
+            g_wheelAcc += (int)(short)HIWORD(((KMSLL*)lp)->mouseData);
     }
-    return CallWindowProcA(g_wheelOrigProc, hwnd, msg, wp, lp);
+    return CallNextHookEx(g_wheelHook, code, wp, lp);
+}
+
+static DWORD WINAPI wheelThread(LPVOID) {
+    g_wheelHook = SetWindowsHookExA(WH_MOUSE_LL, wheelLLProc, GetModuleHandleA(0), 0);
+    flog("wheel: WH_MOUSE_LL hook %s (dedicated thread)", g_wheelHook ? "installed" : "FAILED");
+    if (!g_wheelHook) return 0;
+    MSG msg;                                    // hook callbacks are serviced by this loop
+    while (GetMessageA(&msg, 0, 0, 0) > 0) {
+        TranslateMessage(&msg);
+        DispatchMessageA(&msg);
+    }
+    return 0;
 }
 
 static void wheelEnsureHook() {
-    HWND fg = GetForegroundWindow();
-    if (!fg || fg == g_wheelHwnd) return;
-    DWORD pid = 0; GetWindowThreadProcessId(fg, &pid);
-    if (pid != GetCurrentProcessId()) return;   // only ever subclass OUR window
-    if (g_wheelHwnd && g_wheelOrigProc) {       // window changed (res switch): drop the old subclass
-        SetWindowLongA(g_wheelHwnd, GWL_WNDPROC, (LONG)g_wheelOrigProc);
-        g_wheelOrigProc = 0;
-    }
-    g_wheelHwnd = fg;
-    g_wheelOrigProc = (WNDPROC)SetWindowLongA(fg, GWL_WNDPROC, (LONG)wheelWndProc);
-    flog("wheel: subclassed hwnd %p", (void*)fg);
+    if (InterlockedExchange(&g_wheelInit, 1)) return;   // once
+    g_wheelPid = GetCurrentProcessId();
+    HANDLE th = CreateThread(0, 0, wheelThread, 0, 0, 0);
+    if (th) CloseHandle(th); else { flog("wheel: thread FAILED"); }
 }
 
 // ---- glMouseRMB(): "1" while the right mouse button is physically down, "" else.

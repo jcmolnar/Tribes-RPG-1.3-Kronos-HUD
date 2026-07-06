@@ -14,6 +14,14 @@
 // KronosHUD_Server.cs - Server pushes stats via remoteEval("KronosHUD",...)
 //==============================================
 
+// Network rates: the 1998 defaults ($pref::PacketRate=10, PacketSize=200)
+// pace the reliable stream for dial-up, which makes every server menu
+// round-trip (skill points, shop pushes, roster) feel sluggish on a LAN /
+// broadband. 30 pkt/s + 450B is the stock protocol maximum - both ends
+// clamp, so this is safe against any server.
+$pref::PacketRate = 30;
+$pref::PacketSize = 450;
+
 // ============================================
 // Remote handlers - receive data from server
 // ============================================

@@ -339,6 +339,31 @@ function KronosShop::render(%dimensions)
 // tags. Rows are split + colorized ONCE here (fixed alpha - tooltips don't
 // fade); glGetStringDimensions skips inline <RRGGBBAA> tags, so the stored
 // colored rows measure correctly at render time.
+// Chunked delivery: one remoteEval string arg is capped at 255 bytes on the
+// wire, so the server splits long examine texts into KShopTipPart pieces and
+// we reassemble, then hand the whole thing to the parser below.
+function remoteKShopTipBegin(%server)
+{
+	if(%server != 2048)
+		return;
+	$KS::tipBuf = "";
+}
+
+function remoteKShopTipPart(%server, %part)
+{
+	if(%server != 2048)
+		return;
+	$KS::tipBuf = $KS::tipBuf @ %part;
+}
+
+function remoteKShopTipDone(%server)
+{
+	if(%server != 2048)
+		return;
+	remoteKShopTipText(2048, $KS::tipBuf);
+	$KS::tipBuf = "";
+}
+
 function remoteKShopTipText(%server, %text)
 {
 	if(%server != 2048)
@@ -350,7 +375,7 @@ function remoteKShopTipText(%server, %text)
 	%rows = 0;
 	%more = true;
 	%rest = %text;
-	while(%more && %rows < 16)
+	while(%more && %rows < 32)
 	{
 		%idx = String::findSubStr(%rest, %nl);
 		if(%idx == -1)
@@ -403,17 +428,59 @@ function KronosShop::renderTip(%sw, %sh)
 	%lineH = %font + floor(%font * 0.35);
 	%pad = floor(%font * 0.6);
 
-	// measure the widest row (cached until the font or text changes)
+	// wrap + measure the rows (cached until the font or text changes): long
+	// description rows are word-wrapped to the tooltip's max width instead of
+	// overflowing past the box. Each stored row starts with a 10-char
+	// <rrggbbaa> color tag; continuation lines re-prefix it so the color holds.
 	if($KS::tipMeasuredFont != %font)
 	{
 		glSetFont("Verdana", %font, $GLEX_SMOOTH, 0);
+		%wrapW = floor(%sw * 0.34) - (%pad * 2);
 		%mw = 0;
-		for(%i = 0; %i < $KS::tipRows; %i++)
+		%n = 0;
+		for(%i = 0; %i < $KS::tipRows && %n < 60; %i++)
 		{
-			%t = getword(glGetStringDimensions($KS::tipRow[%i]), 0);
-			if(%t > %mw)
-				%mw = %t;
+			%row = $KS::tipRow[%i];
+			%t = getword(glGetStringDimensions(%row), 0);
+			if(%t <= %wrapW)
+			{
+				$KS::tipWL[%n] = %row;
+				if(%t > %mw)
+					%mw = %t;
+				%n++;
+				continue;
+			}
+			%clr = String::getSubStr(%row, 0, 10);
+			%body = String::getSubStr(%row, 10, 99999);
+			%line = "";
+			for(%wi = 0; (%word = getWord(%body, %wi)) != -1 && %n < 60; %wi++)
+			{
+				if(%line == "")
+					%try = %word;
+				else
+					%try = %line @ " " @ %word;
+				if(getword(glGetStringDimensions(%clr @ %try), 0) > %wrapW && %line != "")
+				{
+					$KS::tipWL[%n] = %clr @ %line;
+					%t = getword(glGetStringDimensions(%clr @ %line), 0);
+					if(%t > %mw)
+						%mw = %t;
+					%n++;
+					%line = %word;
+				}
+				else
+					%line = %try;
+			}
+			if(%line != "" && %n < 60)
+			{
+				$KS::tipWL[%n] = %clr @ %line;
+				%t = getword(glGetStringDimensions(%clr @ %line), 0);
+				if(%t > %mw)
+					%mw = %t;
+				%n++;
+			}
 		}
+		$KS::tipWN = %n;
 		$KS::tipTextW = %mw;
 		$KS::tipMeasuredFont = %font;
 	}
@@ -422,7 +489,7 @@ function KronosShop::renderTip(%sw, %sh)
 	%wMax = floor(%sw * 0.34);
 	if(%w > %wMax)
 		%w = %wMax;
-	%h = ($KS::tipRows * %lineH) + (%pad * 2);
+	%h = ($KS::tipWN * %lineH) + (%pad * 2);
 
 	%x = $KM::mouseX + 18;
 	%y = $KM::mouseY + 14;
@@ -448,9 +515,9 @@ function KronosShop::renderTip(%sw, %sh)
 
 	glSetFont("Verdana", %font, $GLEX_SMOOTH, 0);
 	%ty = %y + %pad;
-	for(%i = 0; %i < $KS::tipRows; %i++)
+	for(%i = 0; %i < $KS::tipWN; %i++)
 	{
-		glDrawString(%x + %pad, %ty, $KS::tipRow[%i]);
+		glDrawString(%x + %pad, %ty, $KS::tipWL[%i]);
 		%ty += %lineH;
 	}
 }

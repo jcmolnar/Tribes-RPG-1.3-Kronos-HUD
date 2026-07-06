@@ -255,7 +255,7 @@ function remoteKShopBeltSell(%clientId, %item)
 	%name = $BeltItem[%item, "Name"];
 	if(%name == "")
 		%name = %item;
-	Client::sendMessage(%clientId, $MsgWhite, "You sold 1 " @ %name @ " for " @ %cost @ " coins.");
+	Client::sendMessage(%clientId, $MsgWhite, "You sold 1 " @ %name @ " for " @ Number::Beautify(%cost, -3) @ " coins.");
 	UseSkill(%clientId, $SkillHaggling, true, true);
 	storeData(%clientId, "COINS", %cost, "inc");
 	Belt::TakeThisStuff(%clientId, %item, 1);
@@ -364,6 +364,87 @@ function remoteKShopSync(%clientId)
 	KronosShop_PushInv(%clientId);
 	if(%clientId.kshopOpen == "shop")
 		KronosShop_PushStock(%clientId);
+}
+
+// ============================================
+// Item tooltip (hover in the client shop/bank/inventory panes)
+// ============================================
+
+// Thousands separators for display ("1234567" -> "1,234,567"). Also defined
+// in the Kronos rpgfunk.cs; duplicated here so this file works standalone.
+function Commafy(%n)
+{
+	%n = floor(%n);
+	if(%n < 1000)
+		return %n;
+	%out = "";
+	while(%n >= 1000)
+	{
+		%r = %n - (floor(%n / 1000) * 1000);
+		%n = floor(%n / 1000);
+		if(%r < 10)
+			%r = "00" @ %r;
+		else if(%r < 100)
+			%r = "0" @ %r;
+		%out = "," @ %r @ %out;
+	}
+	return %n @ %out;
+}
+// The client asks for ONE item's examine text after hovering a row; we answer
+// with the same WhatIs text the two-click buy flow / #examine shows. %kind and
+// %ref use the row scheme of the pushes: "d" = ItemData index, "b" = belt item
+// name. Read-only (no economy state is touched), vanilla-safe (HUD gate).
+function remoteKShopTip(%clientId, %kind, %ref)
+{
+	if(!%clientId.hasKronosHUD)
+		return;
+	if(%clientId.kshopOpen == "")
+		return;
+
+	if(%kind == "b")
+	{
+		// belt items: Belt::WhatIs builds this text but SENDS it as the 10s
+		// examine overlay - the tooltip needs the string, so mirror its body
+		%item = %ref;
+		%desc = %item.description;
+		if(%desc == "" || %desc == "0" || %desc == -1)
+			%desc = $BeltItem[%item, "Name"];
+		if(%desc == "")
+			%desc = %item;
+		%w = GetAccessoryVar(%item, $Weight);
+		%c = GetItemCost(%item);
+		%t = Belt::Display($BeltItem[%item, "Type"]);
+		if($AccessoryVar[%item, $MiscInfo] != "")
+			%nfo = $AccessoryVar[%item, $MiscInfo];
+		else
+			%nfo = "There is no further information available.";
+		%msg = "<f1>" @ %desc;
+		if(%w != "")
+			%msg = %msg @ "\nWeight: " @ %w;
+		if(%t != "")
+			%msg = %msg @ "\nType: " @ %t;
+		if(%c != "")
+			%msg = %msg @ "\nPrice: $" @ Commafy(%c);
+		%msg = %msg @ "\n<f0>" @ %nfo;
+	}
+	else
+	{
+		%item = getItemData(%ref);
+		if(%item == "" || %item == -1)
+			return;
+		%msg = WhatIs(%item);
+	}
+
+	if(%msg == "")
+		return;
+	// The engine caps ONE remoteEval string arg at 255 bytes on the wire, so
+	// long examine texts arrived truncated. Chunk it; the client reassembles
+	// (KShopTipBegin/Part/Done in KronosShop.cs).
+	remoteEval(%clientId, "KShopTipBegin");
+	%len = String::len(%msg);
+	for(%p = 0; %p < %len; %p = %p + 150)
+		remoteEval(%clientId, "KShopTipPart", String::getSubStr(%msg, %p, 150));
+	remoteEval(%clientId, "KShopTipDone");
 }
 
 // ============================================
@@ -749,7 +830,7 @@ function remoteKBankCoinsDeposit(%clientId, %amt)
 		%n = %coins;
 	storeData(%clientId, "BANK", %n, "inc");
 	storeData(%clientId, "COINS", -%n, "inc");
-	Client::sendMessage(%clientId, $MsgWhite, "Deposited " @ %n @ " coins.~wbuysellsound.wav");
+	Client::sendMessage(%clientId, $MsgWhite, "Deposited " @ Number::Beautify(%n, -3) @ " coins.~wbuysellsound.wav");
 	RefreshAll(%clientId);
 	KronosBank_PushCoins(%clientId);
 }
@@ -772,7 +853,7 @@ function remoteKBankCoinsWithdraw(%clientId, %amt)
 		%n = %bank;
 	storeData(%clientId, "COINS", %n, "inc");
 	storeData(%clientId, "BANK", -%n, "inc");
-	Client::sendMessage(%clientId, $MsgWhite, "Withdrew " @ %n @ " coins.~wbuysellsound.wav");
+	Client::sendMessage(%clientId, $MsgWhite, "Withdrew " @ Number::Beautify(%n, -3) @ " coins.~wbuysellsound.wav");
 	RefreshAll(%clientId);
 	KronosBank_PushCoins(%clientId);
 }
@@ -919,8 +1000,8 @@ function KronosMenu_SendOwnInfo(%clientId)
 	remoteEval(%clientId, "setInfoLine", 1, Client::getName(%clientId) @ " - Lv " @ fetchData(%clientId, "LVL") @ " " @ getFinalCLASS(%clientId) @ " RL" @ %remort);
 	remoteEval(%clientId, "setInfoLine", 2, "ATK " @ fetchData(%clientId, "ATK") @ "   DEF " @ fetchData(%clientId, "DEF") @ "   MDEF " @ fetchData(%clientId, "MDEF") @ "   LCK " @ fetchData(%clientId, "LCK"));
 	remoteEval(%clientId, "setInfoLine", 3, "HP " @ fetchData(%clientId, "HP") @ "/" @ fetchData(%clientId, "MaxHP") @ "   MP " @ fetchData(%clientId, "MANA") @ "/" @ fetchData(%clientId, "MaxMANA"));
-	remoteEval(%clientId, "setInfoLine", 4, "EXP " @ %exp @ "   (Need " @ %expNeed @ ")");
-	remoteEval(%clientId, "setInfoLine", 5, "Coins " @ FormatLargeNumber(%coins) @ "   Bank " @ FormatLargeNumber(%bank) @ "   Total " @ FormatLargeNumber(%coins + %bank));
+	remoteEval(%clientId, "setInfoLine", 4, "EXP " @ Number::Beautify(%exp, -3) @ "   (Need " @ Number::Beautify(%expNeed, -3) @ ")");
+	remoteEval(%clientId, "setInfoLine", 5, "Coins " @ Number::Beautify(%coins, -3) @ "   Bank " @ Number::Beautify(%bank, -3) @ "   Total " @ Number::Beautify(%coins + %bank, -3));
 	remoteEval(%clientId, "setInfoLine", 6, "Weight " @ %weight @ " / " @ %maxWeight);
 }
 
@@ -958,8 +1039,12 @@ function remoteKMGetPlayers(%clientId)
 		if(%remort == "" || %remort == -1)
 			%remort = 0;
 
-		// name last - it may contain spaces
-		remoteEval(%clientId, "KMPlayer", %sent, %cl, fetchData(%cl, "LVL"), %remort, getFinalCLASS(%cl), Client::getName(%cl));
+		// location (zone) for the list's location column
+		%zone = Zone::getDesc(fetchData(%cl, "zone"));
+		if(%zone == "" || %zone == -1)
+			%zone = "Unknown";
+
+		remoteEval(%clientId, "KMPlayer", %sent, %cl, fetchData(%cl, "LVL"), %remort, getFinalCLASS(%cl), Client::getName(%cl), %zone);
 		%sent++;
 	}
 	remoteEval(%clientId, "KMPlayerCount", %sent, %total);

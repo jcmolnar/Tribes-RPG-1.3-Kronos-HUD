@@ -55,6 +55,12 @@ function KronosNPC_Open(%client, %botId)
 	%client.knpcBot = %botId;
 	%client.knpcTime = %now;
 
+	// Fresh conversation: clear the comchat dialogue state for this bot/player
+	// pair, or the auto-"#say hi" greeting is skipped when a previous chat was
+	// abandoned mid-state (comchat only self-resets after 10s idle) and the
+	// window opens empty with just the Goodbye row.
+	$state[%botId, %client] = "";
+
 	// open the window (client clears it, then auto-sends "#say hi")
 	remoteEval(%client, "KNPCBegin", %display);
 
@@ -69,17 +75,22 @@ function KronosNPC_Close(%client, %fromCancelMenu)
 	%client.knpcWinOpen = "";
 	%client.knpcCloseBot = %client.knpcBot;
 	%client.knpcCloseTime = getSimTime();
+	// End the bot's conversation state too, so the next talk greets fresh.
+	if(%client.knpcBot != "" && %client.knpcBot != -1)
+		$state[%client.knpcBot, %client] = "";
 	remoteEval(%client, "KNPCClose");
 	if(!%fromCancelMenu)
 		Client::setMenuScoreVis(%client, false);
 }
 
-// Client closed the window (Goodbye / TAB / cursor away)
+// Client closed the window (Goodbye / Esc / Tab). Pass false so the cursor (score
+// dialog) is lowered - the client's Esc/Tab close swallows the key, so nothing else
+// lowers it. setMenuScoreVis(false) is a harmless no-op if it's already down.
 function remoteKNPCClose(%client)
 {
 	if(!%client.hasKronosHUD)
 		return;
-	KronosNPC_Close(%client, true);
+	KronosNPC_Close(%client, false);
 }
 
 // ============================================
