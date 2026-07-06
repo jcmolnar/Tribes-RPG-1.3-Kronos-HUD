@@ -3,9 +3,16 @@
 A modern, resolution-scaling, draggable HUD for **Starsiege: Tribes 1.3** playing on the
 **Kingdom of Kronos** RPG server. Replaces the stock fixed-size HUD/chat with a
 ScriptGL-drawn interface: scalable vitals bars (HP/MP/XP), Lv/Gold, cast bar, weapon
-popup, target frame, a modern TAB menu, a shop/inventory/bank screen, an NPC dialogue
-window, and a custom chat overlay with a **typed chat composer**, color-coded player
-chat, and saveable category filters.
+popup, target frame, a modern TAB menu with a live **player list (level / class /
+location)**, a shop/inventory/bank screen with **search boxes, hover item tooltips,
+mouse-wheel scrolling, and right-click quick bank transfers**, an NPC dialogue window,
+a **quick command menu (Ctrl+V)**, a **session stats panel** (XP/hr, gold/hr), and a
+custom chat overlay with a **typed chat composer**, color-coded player chat, and
+saveable category filters.
+
+All the Kronos overlays are **vanilla-safe off-mod**: on servers that don't run the
+Kronos HUD they self-disable (gated on the server handshake), so the stock HUD and
+keybinds behave normally everywhere else.
 
 Everything draws through **ScriptGL** (the `gl*` console commands provided by the Presto
 repack's `GraphicPlugin.dll`) plus the **Hudbot vhud** framework (`scriptgl2.cs`). The
@@ -61,7 +68,9 @@ this repo.
 
 5. Launch the 1.3 client and connect to Kronos. Press **TAB** for the menu, **I** for
    inventory; chat appears in the new overlay. Press your global-chat key (**Y** by
-   default) to type into the composer.
+   default) to type into the composer, and **Ctrl+V** for the quick command menu.
+   With the cursor up: hover an item for its tooltip, use the **mouse wheel** to scroll
+   lists/chat, and **right-click** a bank row to move the whole stack.
 
 > **Note on `autoexec.cs` / `config.cs`:** the repack and the game itself rewrite these
 > on exit. Only **append** to `autoexec.cs`; never paste your whole copy over the repack's.
@@ -77,11 +86,13 @@ client/
     scriptgl2.cs                   Hudbot vhud framework (repack file, bundled for convenience)
     Presto/
       KronosHUD.cs                 vhud HUD: vitals/Lv/Gold/cast/weapon/target
-      KronosMenu.cs                TAB menu + UI-scale slider + scale/drag framework
-      KronosShop.cs                shop / inventory / bank screen
+      KronosMenu.cs                TAB menu + player list + UI-scale slider + scale/drag framework
+      KronosShop.cs                shop / inventory / bank screen (search, tooltips, wheel, RMB)
       KronosChat.cs                custom chat overlay + typed composer + color + filters
       KronosInput.cs               reusable ScriptGL text-input field (needs the plugin)
       KronosNPC.cs                 modern NPC dialogue window
+      KronosCM.cs                  quick command menu (Ctrl+V) over the live Presto menu
+      KronosStats.cs               session stats panel (XP/hr, gold/hr), draggable
       ChatFilter.cs                chat category filter toggles (ads/cast/loot), persisted
       KronosGUI_README.md          deep design notes, prefs list, console helpers
   Plugins/
@@ -116,7 +127,13 @@ It is an injected DLL loaded by the repack's `mem.dll`. It installs an inline x8
 the 1.3 client's keyboard-dispatch routine (`0x0050d62c`) and:
 
 - registers the console commands `glTextInput`, `glTextPoll`, `glSetTalkKey`,
-  `glPollHotkey`;
+  `glPollHotkey`, `glPollWheel`, `glMouseRMB`;
+- **mouse wheel**: a low-level mouse hook (`WH_MOUSE_LL`) on a dedicated message-loop
+  thread accumulates wheel ticks (DirectInput swallows `WM_MOUSEWHEEL` before the game
+  window ever sees it, and hooking from the game's own thread would lag the whole
+  system's mouse); the script drains whole notches per frame via `glPollWheel`;
+- **right mouse button**: `glMouseRMB` reports the hardware button state
+  (`GetAsyncKeyState`) for the bank quick-transfer clicks;
 - while text-input is active, **queues** each keystroke into a plain C ring buffer and
   swallows it (so movement/weapon binds don't fire while you type) — the hook does **zero**
   engine calls (calling back into the console from the dispatch hook crashes it); the script
