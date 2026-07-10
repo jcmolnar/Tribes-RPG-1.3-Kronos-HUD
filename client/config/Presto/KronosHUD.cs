@@ -1328,10 +1328,13 @@ function KronosHUD::renderFloats(%sw, %sh)
 			%font = floor(%base * (1.4 - (%age / 0.12) * 0.4));
 		glSetFont("Verdana", %font, $GLEX_SMOOTH, 5);
 		%tw = getword(glGetStringDimensions($KHF::text[%i]), 0);
-		%x = floor((%sw - %tw) / 2);
+		%x = (%sw - %tw) / 2;
 		// travel from just below screen center; the spawn offset chain set
-		// in addFloat keeps rapid hits from overprinting; dir -1 = sink
-		%y = floor(%sh * (0.44 + ($KHF::off[%i] * $KHF::dir[%i]))) - floor(%age * %sh * 0.11) * $KHF::dir[%i];
+		// in addFloat keeps rapid hits from overprinting; dir -1 = sink.
+		// Coordinates stay FRACTIONAL (no floor) - ScriptGL hands them to GL
+		// as floats, so the glide is sub-pixel smooth instead of stepping
+		// whole pixels at uneven intervals.
+		%y = (%sh * (0.44 + ($KHF::off[%i] * $KHF::dir[%i]))) - ((%age * %sh * 0.11) * $KHF::dir[%i]);
 		if($KHF::view[%i] == "attacker")
 			glColor4ub(255, 205, 80, %alpha);       // damage you deal - gold
 		else if($KHF::view[%i] == "defender")

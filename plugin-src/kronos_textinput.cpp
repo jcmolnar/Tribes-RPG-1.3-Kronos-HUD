@@ -261,14 +261,21 @@ static void wheelEnsureHook() {
 
 // ---- glTicks(): milliseconds since the plugin loaded (real wall clock).
 // The script sim clock advances in coarse ~30Hz ticks, which made per-frame
-// animations (damage floats) stutter. SESSION-RELATIVE so the value stays
-// small enough for TorqueScript's 32-bit floats to keep ms precision
-// (raw GetTickCount loses sub-ms accuracy after ~4.6h of Windows uptime).
-static DWORD g_ticks0 = 0;
+// animations (damage floats) stutter. Backed by QueryPerformanceCounter -
+// GetTickCount only updates every ~15.6ms (system timer resolution), which
+// still stepped visibly at high fps. SESSION-RELATIVE and printed with one
+// decimal so TorqueScript's 32-bit floats keep sub-ms precision.
+static LONGLONG g_qpc0 = 0, g_qpcFreq = 0;
 extern "C" char* __cdecl c_glTicks(int argc, char** argv) {
-    static char buf[16];
-    if (!g_ticks0) g_ticks0 = GetTickCount();
-    _snprintf(buf, sizeof(buf), "%u", (unsigned)(GetTickCount() - g_ticks0));
+    static char buf[24];
+    LARGE_INTEGER li;
+    if (!g_qpcFreq) {
+        QueryPerformanceFrequency(&li); g_qpcFreq = li.QuadPart ? li.QuadPart : 1;
+        QueryPerformanceCounter(&li);   g_qpc0 = li.QuadPart;
+    }
+    QueryPerformanceCounter(&li);
+    double ms = (double)(li.QuadPart - g_qpc0) * 1000.0 / (double)g_qpcFreq;
+    _snprintf(buf, sizeof(buf), "%.1f", ms);
     buf[sizeof(buf)-1] = 0;
     return buf;
 }
