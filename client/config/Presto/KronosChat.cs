@@ -46,6 +46,7 @@ $KC::fLabel["adv"]    = "ADS";
 $KC::fLabel["spellc"] = "CAST";
 $KC::fLabel["loot"]   = "LOOT";
 $KC::fLabel["house"]  = "HOUSE";
+$KC::fLabel["stats"]  = "STATS";
 
 // ============================================
 // Capture
