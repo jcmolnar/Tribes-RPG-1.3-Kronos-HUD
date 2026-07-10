@@ -201,7 +201,11 @@ function remoteNewMenu(%server, %title)
 	// every selection (each skill-point click = a new menu), and re-pulling
 	// the whole roster each time wasted the reliable-stream budget the menu
 	// rows need - the refresh felt sluggish. Rosters change slowly; 3s is fresh.
-	if($KM::plReqTime == "" || (GetSimTime() - $KM::plReqTime) > 3.0)
+	// NB: sim time RESETS on join / mission change, so a stamp from a
+	// previous session makes the delta negative - treat that as stale and
+	// re-request (a plain "> 3.0" check suppressed the roster forever)
+	%plDt = GetSimTime() - $KM::plReqTime;
+	if($KM::plReqTime == "" || %plDt > 3.0 || %plDt < 0)
 	{
 		$KM::plReqTime = GetSimTime();
 		remoteEval(2048, KMGetPlayers);
