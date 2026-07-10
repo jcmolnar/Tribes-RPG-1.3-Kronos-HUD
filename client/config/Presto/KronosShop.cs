@@ -316,7 +316,7 @@ function KronosShop::render(%dimensions)
 		$KS::hovId = $KS::hovNow;
 		$KS::hovT = GetSimTime();
 	}
-	if($KS::hovId != "" && (GetSimTime() - $KS::hovT) > 0.35
+	if($KS::hovId != "" && kronos::simAge($KS::hovT) > 0.35
 		&& String::Compare($KS::tipFor, $KS::hovId) != 0
 		&& String::Compare($KS::tipReq, $KS::hovId) != 0)
 	{
@@ -1459,7 +1459,7 @@ function ScriptGL::playGui::onPostDraw(%dimensions)
 
 	KronosMenu::render(%dim);
 
-	if($KH::exTime != "" && (GetSimTime() - $KH::exTime) < 10.0)
+	if(kronos::simAge($KH::exTime) < 10.0)
 		kronos::examine_render(getword(%dim, 0), getword(%dim, 1));
 
 	KronosShop::render(%dim);

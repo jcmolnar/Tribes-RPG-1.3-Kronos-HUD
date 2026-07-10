@@ -159,6 +159,23 @@ function KTheme::hue(%h)
 KTheme::apply();   // colors must exist before any panel renders
 
 // ============================================
+// Sim-time age helper
+// ============================================
+// GetSimTime() RESETS on join / mission change, so a stamp taken before the
+// reset makes (now - stamp) NEGATIVE - and every "show while age < N" overlay
+// check passes forever (stuck examine text, immortal target frames...).
+// Treat empty stamps and negative deltas as VERY OLD.
+function kronos::simAge(%t)
+{
+	if(%t == "" || %t == 0)
+		return 99999;
+	%d = GetSimTime() - %t;
+	if(%d < 0)
+		return 99999;
+	return %d;
+}
+
+// ============================================
 // Remote handlers - receive data from server
 // ============================================
 
@@ -229,7 +246,7 @@ function remoteKronosTarget(%server, %targetName, %targetHpPct, %dmg)
 		%now = GetSimTime();
 		if(%dmg == "LCK")
 		{
-			if((%now - $KH::tLckTime) >= 1.5)
+			if(kronos::simAge($KH::tLckTime) >= 1.5)
 				$KH::tLckN = 1;
 			else
 				$KH::tLckN++;
@@ -237,7 +254,7 @@ function remoteKronosTarget(%server, %targetName, %targetHpPct, %dmg)
 		}
 		else
 		{
-			if((%now - $KH::tDmgTime) >= 1.5)
+			if(kronos::simAge($KH::tDmgTime) >= 1.5)
 				$KH::tDmgSum = %dmg;
 			else
 				$KH::tDmgSum = $KH::tDmgSum + %dmg;
@@ -762,7 +779,7 @@ function KronosHUD::ownHit(%plain)
 	}
 	if(String::findSubStr(%plain, "LCK") != -1)
 	{
-		if((%now - $KH::oLckTime) >= 1.5)
+		if(kronos::simAge($KH::oLckTime) >= 1.5)
 			$KH::oLckN = 1;
 		else
 			$KH::oLckN++;
@@ -775,7 +792,7 @@ function KronosHUD::ownHit(%plain)
 		%n = String::getSubStr(%plain, %dash + 1, 99999) + 0;
 		if(%n > 0)
 		{
-			if((%now - $KH::oDmgTime) >= 1.5)
+			if(kronos::simAge($KH::oDmgTime) >= 1.5)
 				$KH::oDmgSum = %n;
 			else
 				$KH::oDmgSum = $KH::oDmgSum + %n;
@@ -835,7 +852,7 @@ function kronos::examine_render(%sw, %sh)
 		return;
 
 	// Hold solid for 9s, fade out over the last 1s
-	%elapsed = GetSimTime() - $KH::exTime;
+	%elapsed = kronos::simAge($KH::exTime);
 	%alpha = 230;
 	if(%elapsed > 9.0)
 	{
@@ -941,7 +958,7 @@ function kronos::cast_onrender()
 	// Brief "Interrupted!" flash after a cast stop
 	if($KH::castInterrupted > 0)
 	{
-		%age = %now - $KH::castInterrupted;
+		%age = kronos::simAge($KH::castInterrupted);
 		if(%age < 0.8)
 		{
 			glDisable($GL_TEXTURE_2D);
@@ -1025,7 +1042,7 @@ function kronos::weapon_onrender()
 		return;
 
 	// Hold solid for 2.4s, fade out over the last 0.6s
-	%elapsed = GetSimTime() - $KH::wpnTime;
+	%elapsed = kronos::simAge($KH::wpnTime);
 	if(%elapsed > 3.0)
 		return;
 
@@ -1098,7 +1115,7 @@ function kronos::target_onrender()
 	// Server LOS scan refreshes targetTime every 0.5s while we're
 	// looking at the target, so the frame stays solid while aiming
 	// and fades out quickly once we look away.
-	%elapsed = GetSimTime() - $KH::targetTime;
+	%elapsed = kronos::simAge($KH::targetTime);
 	if(%elapsed > 2.2)
 	{
 		// Target expired
@@ -1244,7 +1261,7 @@ function KronosHUD::plateAlpha(%t)
 {
 	if(%t == "" || %t == 0)
 		return 0;
-	%age = GetSimTime() - %t;
+	%age = kronos::simAge(%t);
 	if(%age >= 1.5)
 		return 0;
 	if(%age <= 1.0)
