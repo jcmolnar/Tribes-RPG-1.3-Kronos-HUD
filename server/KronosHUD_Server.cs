@@ -994,8 +994,10 @@ function KronosMenu_SendOwnInfo(%clientId)
 	%coins = fetchData(%clientId, "COINS");
 	%bank = fetchData(%clientId, "BANK");
 
-	%weight = round(fetchData(%clientId, "Weight") * 10) / 10;
-	%maxWeight = round(fetchData(%clientId, "MaxWeight") * 10) / 10;
+	// FixDecimals builds the "N.d" string by hand - round(x*10)/10 stringifies
+	// with binary-float noise (weight showed 12 decimals on the TAB menu)
+	%weight = FixDecimals(fetchData(%clientId, "Weight"));
+	%maxWeight = FixDecimals(fetchData(%clientId, "MaxWeight"));
 
 	remoteEval(%clientId, "setInfoLine", 1, Client::getName(%clientId) @ " - Lv " @ fetchData(%clientId, "LVL") @ " " @ getFinalCLASS(%clientId) @ " RL" @ %remort);
 	remoteEval(%clientId, "setInfoLine", 2, "ATK " @ fetchData(%clientId, "ATK") @ "   DEF " @ fetchData(%clientId, "DEF") @ "   MDEF " @ fetchData(%clientId, "MDEF") @ "   LCK " @ fetchData(%clientId, "LCK"));
