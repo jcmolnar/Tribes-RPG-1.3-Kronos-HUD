@@ -1273,6 +1273,8 @@ function ScriptGL::playGui::onPreDraw(%dimensions)
 	// SetVisible(false) on an already-hidden control is a cheap no-op.
 	kronos::applyStockHudVisibility();
 	KronosChat::applyVisibility();
+	if($KH::fpsProbe)
+		KronosHUD::fpsSample();
 	if($KM::enabled != "")
 		vhud::render( KronosMenu::screenDim(%dimensions) );
 	else
@@ -1489,6 +1491,48 @@ kronos::create();
 // If we're exec'd mid-game, PlayGui is already open - apply now
 if($Mode::PlayMode)
 	kronos::applyStockHudVisibility();
+
+// ============================================
+// Render-cadence probe: khFps(); from the console, then watch chat/console.
+// Samples 120 consecutive ScriptGL frames with the real clock and reports
+// average fps + the worst single frame gap. If the average is ~30, the
+// CLIENT is rendering at 30 - no animation can be smoother than that.
+// ============================================
+function khFps()
+{
+	if(!$KH::hasTicks)
+	{
+		echo("khFps: glTicks not available (old DLL)");
+		return;
+	}
+	$KH::fpsN = 0;
+	$KH::fpsLast = "";
+	$KH::fpsSum = 0;
+	$KH::fpsMax = 0;
+	$KH::fpsProbe = true;
+	echo("khFps: sampling 120 frames...");
+}
+
+function KronosHUD::fpsSample()
+{
+	%t = glTicks();
+	if($KH::fpsLast != "")
+	{
+		%dt = %t - $KH::fpsLast;
+		$KH::fpsSum += %dt;
+		if(%dt > $KH::fpsMax)
+			$KH::fpsMax = %dt;
+		$KH::fpsN++;
+		if($KH::fpsN >= 120)
+		{
+			$KH::fpsProbe = false;
+			%avg = $KH::fpsSum / $KH::fpsN;
+			echo("khFps: avg " @ floor((1000 / %avg) + 0.5) @ " fps (frame " @ floor(%avg * 10) / 10
+				@ " ms, worst gap " @ floor($KH::fpsMax * 10) / 10 @ " ms)");
+		}
+	}
+	$KH::fpsLast = %t;
+}
 
 // Console convenience: reload the whole Kronos suite in load order
 // (all scripts are re-exec safe - vhud::create won't double-register and
