@@ -1349,4 +1349,21 @@ kronos::create();
 if($Mode::PlayMode)
 	kronos::applyStockHudVisibility();
 
+// Console convenience: reload the whole Kronos suite in load order
+// (all scripts are re-exec safe - vhud::create won't double-register and
+// the Event attaches are tagged). Usage from the console:  khReload();
+function khReload()
+{
+	exec("Presto\\KronosHUD.cs");
+	exec("Presto\\ChatFilter.cs");
+	exec("Presto\\KronosInput.cs");
+	exec("Presto\\KronosMenu.cs");
+	exec("Presto\\KronosShop.cs");
+	exec("Presto\\KronosChat.cs");
+	exec("Presto\\KronosNPC.cs");
+	exec("Presto\\KronosCM.cs");
+	exec("Presto\\KronosStats.cs");
+	echo("khReload: Kronos suite re-exec'd");
+}
+
 echo("KronosHUD: ScriptGL RPG HUD loaded");
