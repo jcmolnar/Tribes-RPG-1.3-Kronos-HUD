@@ -210,26 +210,39 @@ function remoteKronosTarget(%server, %targetName, %targetHpPct, %dmg)
 {
 	if(%server != 2048) return;
 
-	// New target - reset the damage accumulator
+	// New target - reset the combat readout slots
 	if(%targetName != $KH::targetName)
 	{
-		$KH::targetDmgSum = "";
-		$KH::targetDmgTime = 0;
+		$KH::tMissTime = 0;
+		$KH::tLckN = 0;   $KH::tLckTime = 0;
+		$KH::tDmgSum = 0; $KH::tDmgTime = 0;
 	}
 
 	$KH::targetName = %targetName;
 	$KH::targetHp = %targetHpPct;
 	$KH::targetTime = GetSimTime();
 
-	// Damage hit: rapid hits accumulate into one rolling number
+	// Damage hit: LCK and numeric damage feed SEPARATE plate slots
+	// (MISS comes via the nameplate ATKText path); rapid hits accumulate
 	if(%dmg != "" && %dmg != -1)
 	{
 		%now = GetSimTime();
-		if(%dmg == "LCK" || $KH::targetDmgSum == "LCK" || (%now - $KH::targetDmgTime) >= 1.5)
-			$KH::targetDmgSum = %dmg;
+		if(%dmg == "LCK")
+		{
+			if((%now - $KH::tLckTime) >= 1.5)
+				$KH::tLckN = 1;
+			else
+				$KH::tLckN++;
+			$KH::tLckTime = %now;
+		}
 		else
-			$KH::targetDmgSum = $KH::targetDmgSum + %dmg;
-		$KH::targetDmgTime = %now;
+		{
+			if((%now - $KH::tDmgTime) >= 1.5)
+				$KH::tDmgSum = %dmg;
+			else
+				$KH::tDmgSum = $KH::tDmgSum + %dmg;
+			$KH::tDmgTime = %now;
+		}
 	}
 }
 
@@ -721,6 +734,54 @@ function kronos::vitals_onrender()
 	else
 		%xpText = "XP";
 	kronos::drawBarText("xp_bar_pos", "xp_bar_br", %xpText, 20, 18, 8, 245);
+
+	// --- OWN combat readout (nameplate mode) ---
+	// Incoming MISS(dodged) | LCK | -DAMAGE in the same slot row as the
+	// target plate, drawn just above our own "plate" (the HP bar)
+	%oPos = vhud::render_value("hp_bar_pos");
+	%oBr = vhud::render_value("hp_bar_br");
+	%oFont = floor(getword(%oBr, 1) * 0.85);
+	if(%oFont < 9)
+		%oFont = 9;
+	KronosHUD::renderPlateRow(getword(%oPos, 0), getword(%oPos, 1) - %oFont - 4, %oFont,
+		$KH::oMissTime, $KH::oLckN, $KH::oLckTime, $KH::oDmgSum, $KH::oDmgTime,
+		255, 90, 80);
+}
+
+// Own plate feed (nameplate mode): parse an incoming defender message into
+// the MISS / LCK / DMG slots. Unknown formats fall back to a sinking float.
+function KronosHUD::ownHit(%plain)
+{
+	%now = GetSimTime();
+	if(String::findSubStr(%plain, "Dodged") != -1 || String::findSubStr(%plain, "Miss") != -1)
+	{
+		$KH::oMissTime = %now;
+		return;
+	}
+	if(String::findSubStr(%plain, "LCK") != -1)
+	{
+		if((%now - $KH::oLckTime) >= 1.5)
+			$KH::oLckN = 1;
+		else
+			$KH::oLckN++;
+		$KH::oLckTime = %now;
+		return;
+	}
+	%dash = String::findSubStr(%plain, "-");
+	if(%dash != -1)
+	{
+		%n = String::getSubStr(%plain, %dash + 1, 99999) + 0;
+		if(%n > 0)
+		{
+			if((%now - $KH::oDmgTime) >= 1.5)
+				$KH::oDmgSum = %n;
+			else
+				$KH::oDmgSum = $KH::oDmgSum + %n;
+			$KH::oDmgTime = %now;
+			return;
+		}
+	}
+	KronosHUD::addFloat(%plain, "defender", -1);
 }
 
 // ============================================
@@ -1166,36 +1227,66 @@ function kronos::target_onrender()
 	glSetFont("Verdana", vhud::render_value("tgt_hp_font"), $GLEX_SMOOTH, 5);
 	glDrawString(getword(%hpPos, 0), getword(%hpPos, 1), floor($KH::targetHp) @ "%");
 
-	// --- Damage dealt (rolling hit number, top-right of frame) ---
-	// Rapid hits within 1.5s accumulate into one number; holds 1s then
-	// fades over the last 0.5s
-	if($KH::targetDmgSum != "")
+	// --- Combat readout row (top-left, above the bubble) ---
+	// Fixed slots so nothing overlaps: MISS | LCK xN | -DAMAGE (the damage
+	// slot is last so a huge number can trail off to the right un-clipped)
+	%dmgFont = vhud::render_value("tgt_name_font");
+	KronosHUD::renderPlateRow(%bx, %by - %dmgFont - 2, %dmgFont,
+		$KH::tMissTime, $KH::tLckN, $KH::tLckTime, $KH::tDmgSum, $KH::tDmgTime,
+		255, 170, 60);
+}
+
+// Shared MISS | LCK xN | -DMG slot row (target plate + own plate).
+// Each slot shows for 1.5s after its stamp, fading over the last 0.5s.
+function KronosHUD::plateAlpha(%t)
+{
+	if(%t == "" || %t == 0)
+		return 0;
+	%age = GetSimTime() - %t;
+	if(%age >= 1.5)
+		return 0;
+	if(%age <= 1.0)
+		return 235;
+	%a = floor(235 * (1 - ((%age - 1.0) / 0.5)));
+	if(%a < 0)
+		%a = 0;
+	return %a;
+}
+
+function KronosHUD::renderPlateRow(%x, %y, %font, %missT, %lckN, %lckT, %dmgSum, %dmgT, %dr, %dg, %db)
+{
+	%aMiss = KronosHUD::plateAlpha(%missT);
+	%aLck = KronosHUD::plateAlpha(%lckT);
+	%aDmg = KronosHUD::plateAlpha(%dmgT);
+	if(%aMiss <= 0 && %aLck <= 0 && %aDmg <= 0)
+		return;
+
+	glSetFont("Verdana", %font, $GLEX_SMOOTH, 5);
+	// fixed columns: MISS slot, LCK slot, then damage trailing right
+	%missW = getword(glGetStringDimensions("MISS"), 0);
+	%lckW = getword(glGetStringDimensions("LCK x9"), 0);
+	%gap = floor(%font * 0.6);
+	%c2 = %x + %missW + %gap;
+	%c3 = %c2 + %lckW + %gap;
+
+	if(%aMiss > 0)
 	{
-		%dmgAge = GetSimTime() - $KH::targetDmgTime;
-		if(%dmgAge < 1.5)
-		{
-			%dmgAlpha = %alpha;
-			if(%dmgAge > 1.0)
-			{
-				%dfade = (%dmgAge - 1.0) / 0.5;
-				%dmgAlpha = floor(%alpha - (%alpha * %dfade));
-				if(%dmgAlpha < 0)
-					%dmgAlpha = 0;
-			}
-
-			if($KH::targetDmgSum == "LCK")
-				%dmgText = "LCK!";
-			else
-				%dmgText = "-" @ $KH::targetDmgSum;
-
-			// Drawn centered ABOVE the frame: the name is now centered in the
-			// bubble, so the old fixed tgt_dmg_pos anchor overlapped it.
-			%dmgFont = vhud::render_value("tgt_name_font");
-			glSetFont("Verdana", %dmgFont, $GLEX_SMOOTH, 5);
-			%dtw = getword(glGetStringDimensions(%dmgText), 0);
-			glColor4ub(255, 170, 60, %dmgAlpha);
-			glDrawString(%bx + floor((%bw - %dtw) / 2), %by - %dmgFont - 2, %dmgText);
-		}
+		glColor4ub(210, 215, 225, %aMiss);
+		glDrawString(%x, %y, "MISS");
+	}
+	if(%aLck > 0)
+	{
+		if(%lckN > 1)
+			%lckText = "LCK x" @ %lckN;
+		else
+			%lckText = "LCK";
+		glColor4ub(255, 235, 120, %aLck);
+		glDrawString(%c2, %y, %lckText);
+	}
+	if(%aDmg > 0 && %dmgSum != 0)
+	{
+		glColor4ub(%dr, %dg, %db, %aDmg);
+		glDrawString(%c3, %y, "-" @ %dmgSum);
 	}
 }
 
@@ -1351,15 +1442,31 @@ function KronosHUD::floatNow()
 	return $KHF::clock;
 }
 
+// Remove ALL <...> tags including the brackets. String::removeBetween can
+// leave the empty "<>" shells behind (the "<> in Miss floats" bug) and
+// unknown server formats arrive with their tags intact - cut them by hand.
+function KronosHUD::stripTags(%text)
+{
+	%guard = 0;
+	while(%guard < 24)
+	{
+		%guard++;
+		%lt = String::findSubStr(%text, "<");
+		if(%lt == -1)
+			return %text;
+		%rest = String::getSubStr(%text, %lt + 1, 99999);
+		%gt = String::findSubStr(%rest, ">");
+		if(%gt == -1)
+			return %text;   // unmatched "<" - leave as-is
+		%text = String::getSubStr(%text, 0, %lt) @ String::getSubStr(%rest, %gt + 1, 99999);
+	}
+	return %text;
+}
+
 function KronosHUD::addFloat(%text, %viewType, %dir)
 {
 	// strip <jc>/<fN>/... tags and newlines - color comes from viewType
-	%xtr = String::removeBetween(%text, "<", ">");
-	while(%xtr != %text)
-	{
-		%text = %xtr;
-		%xtr = String::removeBetween(%text, "<", ">");
-	}
+	%text = KronosHUD::stripTags(%text);
 	%text = String::replace(%text, "\n", "  ");
 	if(%text == "")
 		return;
@@ -1473,12 +1580,23 @@ function remoteATKText(%server, %text, %animationStyle, %viewType)
 	}
 	if(%animationStyle == "nameplate")
 	{
-		// nameplate mode: dealt damage shows on the target bubble (tgt_dmg);
-		// these floats are the damage you TAKE, which sinks downward
+		// nameplate mode: everything renders on the PLATES, not as floats.
+		// Attacker messages reaching here are only "Miss!" (dealt damage
+		// goes to the target plate via KronosTarget) -> target MISS slot.
+		// Defender messages feed the OWN plate above the vitals bars.
+		%plain = KronosHUD::stripTags(%text);
+		if(%viewType == "attacker")
+		{
+			$KH::tMissTime = GetSimTime();
+			return;
+		}
 		if(%viewType == "defender")
-			KronosHUD::addFloat(%text, %viewType, -1);
-		else
-			KronosHUD::addFloat(%text, %viewType);
+		{
+			KronosHUD::ownHit(%plain);
+			return;
+		}
+		// spectators shouldn't reach here (server converts to pop) - float it
+		KronosHUD::addFloat(%text, %viewType);
 		return;
 	}
 	// stock validation: unknown/legacy style values fall back to the default
