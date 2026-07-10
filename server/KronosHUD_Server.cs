@@ -370,6 +370,16 @@ function remoteKShopSync(%clientId)
 // Item tooltip (hover in the client shop/bank/inventory panes)
 // ============================================
 
+// One-decimal display string ("12.3") built by hand - float division would
+// stringify with binary noise. Local name so a stale rpgfunk.cs can't shadow it.
+function KHud_FixDec(%c)
+{
+	%d = round(%c * 10);
+	%i = floor(%d / 10);
+	%f = %d - (%i * 10);
+	return %i @ "." @ %f;
+}
+
 // Thousands separators for display ("1234567" -> "1,234,567"). Also defined
 // in the Kronos rpgfunk.cs; duplicated here so this file works standalone.
 function Commafy(%n)
@@ -994,10 +1004,10 @@ function KronosMenu_SendOwnInfo(%clientId)
 	%coins = fetchData(%clientId, "COINS");
 	%bank = fetchData(%clientId, "BANK");
 
-	// FixDecimals builds the "N.d" string by hand - round(x*10)/10 stringifies
+	// KHud_FixDec builds the "N.d" string by hand - round(x*10)/10 stringifies
 	// with binary-float noise (weight showed 12 decimals on the TAB menu)
-	%weight = FixDecimals(fetchData(%clientId, "Weight"));
-	%maxWeight = FixDecimals(fetchData(%clientId, "MaxWeight"));
+	%weight = KHud_FixDec(fetchData(%clientId, "Weight"));
+	%maxWeight = KHud_FixDec(fetchData(%clientId, "MaxWeight"));
 
 	remoteEval(%clientId, "setInfoLine", 1, Client::getName(%clientId) @ " - Lv " @ fetchData(%clientId, "LVL") @ " " @ getFinalCLASS(%clientId) @ " RL" @ %remort);
 	remoteEval(%clientId, "setInfoLine", 2, "ATK " @ fetchData(%clientId, "ATK") @ "   DEF " @ fetchData(%clientId, "DEF") @ "   MDEF " @ fetchData(%clientId, "MDEF") @ "   LCK " @ fetchData(%clientId, "LCK"));
