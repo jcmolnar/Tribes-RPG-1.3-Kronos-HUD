@@ -22,6 +22,14 @@
 $pref::PacketRate = 30;
 $pref::PacketSize = 450;
 
+// Fullscreen must present through OpenGL. The stock 1.3 default fullscreen
+// driver is "Software" (windowed is OpenGL), so toggling fullscreen swapped
+// the renderer out from under ScriptGL - every HUD gl* call then ran with no
+// GL context and CRASHED the client. Forcing the fullscreen driver to OpenGL
+// (the renderer the game is already presenting with) fixes it; the pref is
+// saved back to ClientPrefs.cs so it sticks.
+$pref::VideoFullScreenDriver = "OpenGL";
+
 // ============================================
 // Remote handlers - receive data from server
 // ============================================
