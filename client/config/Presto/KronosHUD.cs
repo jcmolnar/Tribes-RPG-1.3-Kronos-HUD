@@ -1102,10 +1102,13 @@ function kronos::target_onrender()
 			else
 				%dmgText = "-" @ $KH::targetDmgSum;
 
+			// Drawn centered ABOVE the frame: the name is now centered in the
+			// bubble, so the old fixed tgt_dmg_pos anchor overlapped it.
+			%dmgFont = vhud::render_value("tgt_name_font");
+			glSetFont("Verdana", %dmgFont, $GLEX_SMOOTH, 5);
+			%dtw = getword(glGetStringDimensions(%dmgText), 0);
 			glColor4ub(255, 170, 60, %dmgAlpha);
-			%dmgPos = vhud::render_value("tgt_dmg_pos");
-			glSetFont("Verdana", vhud::render_value("tgt_name_font"), $GLEX_SMOOTH, 5);
-			glDrawString(getword(%dmgPos, 0), getword(%dmgPos, 1), %dmgText);
+			glDrawString(%bx + floor((%bw - %dtw) / 2), %by - %dmgFont - 2, %dmgText);
 		}
 	}
 }
