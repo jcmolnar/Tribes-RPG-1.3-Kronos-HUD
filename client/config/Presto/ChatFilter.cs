@@ -5,6 +5,7 @@
 //   ~adv    = server advertisements (advertisements.cs)
 //   ~spellc = "X is casting Y on you." messages (spells.cs)
 //   ~loot   = loot/coin pickup messages (rpgfunk, Belt, backpack, ...)
+//   ~house  = house payout/loyalty messages (gameevents, housebonus)
 //
 // The engine strips everything from "~" before displaying a chat line,
 // so tagged messages look identical on clients without this script.
@@ -27,10 +28,11 @@
 Include("presto\\Event.cs");
 
 // Known categories (for status display and toggle feedback)
-$ChatFilter::Categories = "adv spellc loot";
+$ChatFilter::Categories = "adv spellc loot house";
 $ChatFilter::Desc["adv"] = "Server advertisements";
 $ChatFilter::Desc["spellc"] = "Spell casting messages";
 $ChatFilter::Desc["loot"] = "Loot pickup messages";
+$ChatFilter::Desc["house"] = "House payout messages";
 
 // ============================================
 // The filter itself

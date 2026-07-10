@@ -45,6 +45,7 @@ $KC::fbN = 0;            // filter buttons shown this frame
 $KC::fLabel["adv"]    = "ADS";
 $KC::fLabel["spellc"] = "CAST";
 $KC::fLabel["loot"]   = "LOOT";
+$KC::fLabel["house"]  = "HOUSE";
 
 // ============================================
 // Capture
