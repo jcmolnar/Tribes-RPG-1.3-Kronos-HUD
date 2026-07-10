@@ -316,6 +316,11 @@ function onMouseLMB(%isDown)
 		return;
 	}
 
+	// Scale widget expand/collapse toggle (checked before the slider
+	// tracks so the [-] box isn't swallowed by a hit band)
+	if($KM::mouseOn && $KM::enabled && KronosMenu::scaleToggleClick($KM::mouseX, $KM::mouseY))
+		return;
+
 	// UI-scale slider takes priority (it sits clear of the panels, at
 	// top-center, and is only live while the cursor is up)
 	if($KM::mouseOn && $KM::enabled && KronosMenu::sliderHit($KM::mouseX, $KM::mouseY))
@@ -882,6 +887,40 @@ function KronosMenu::renderSlider(%sw, %sh)
 	if(%font < 9)
 		%font = 9;
 
+	// ---- collapsed pill (default): "Scale" one-liner, click to expand ----
+	// The full 3-row widget covered a lot of screen; it now pops down only
+	// while adjusting. State is per-session ($KM::scaleOpen), starts closed.
+	if(!$KM::scaleOpen)
+	{
+		%h = %lineH + (%pad * 2);
+		// clicking the pill expands; no move handle / slider hits while closed
+		$Panel::uisShown = false;
+		$KScale::btnX = %x;  $KScale::btnY = %y;
+		$KScale::btnW = %w;  $KScale::btnH = %h;
+		$KSlider::hitX0 = 0;   $KSlider::hitX1 = 0;
+		$KSlider2::hitX0 = 0;  $KSlider2::hitX1 = 0;
+		$KSlider3::hitX0 = 0;  $KSlider3::hitX1 = 0;
+		$KTheB::w = 0;
+
+		glDisable($GL_TEXTURE_2D);
+		glBlendFunc($GL_SRC_ALPHA, $GL_ONE_MINUS_SRC_ALPHA);
+		KronosMenu::drawPanelBody(%x, %y, %w, %h, %pad, 0);
+
+		glColor4ub(235, 240, 255, 235);
+		glSetFont("Verdana", %font, $GLEX_SMOOTH, 1);
+		%pillText = "Scale / Theme  -  click to adjust";
+		%ptw = getword(glGetStringDimensions(%pillText), 0);
+		glDrawString(%x + floor((%w - %ptw) / 2), %y + floor((%h - %font) / 2), %pillText);
+		return;
+	}
+
+	// expanded: a small [-] box at the top-right collapses it again
+	%clW = floor(%lineH * 0.8);
+	$KScale::btnX = %x + %w - %clW - floor(%pad / 2);
+	$KScale::btnY = %y + floor(%pad / 2);
+	$KScale::btnW = %clW;
+	$KScale::btnH = %clW;
+
 	// stash the widget rect as a move handle (the track is grabbed first
 	// for scale-adjust in onMouseLMB, so the rest of the box moves it)
 	$Panel::uisX = %x;  $Panel::uisY = %y;  $Panel::uisW = %w;  $Panel::uisH = %h;
@@ -1072,6 +1111,28 @@ function KronosMenu::renderSlider(%sw, %sh)
 	glColor4ub(235, 240, 255, 240);
 	glSetFont("Verdana", %font, $GLEX_SMOOTH, 1);
 	glDrawString(%x + %pad, %tLabY + floor(%pad * 0.2), "Theme");
+
+	// collapse box [-] (top-right; geometry stashed above)
+	glDisable($GL_TEXTURE_2D);
+	glBlendFunc($GL_SRC_ALPHA, $GL_ONE_MINUS_SRC_ALPHA);
+	glColor4ub($KT::chR, $KT::chG, $KT::chB, 170);
+	glRectangle($KScale::btnX, $KScale::btnY, $KScale::btnW, $KScale::btnH);
+	glColor4ub(235, 240, 255, 235);
+	glRectangle($KScale::btnX + 3, $KScale::btnY + floor($KScale::btnH / 2), $KScale::btnW - 6, 2);
+}
+
+// Collapsed pill click = expand; expanded [-] click = collapse.
+function KronosMenu::scaleToggleClick(%x, %y)
+{
+	if($KScale::btnW < 1)
+		return false;
+	if(%x >= $KScale::btnX && %x < $KScale::btnX + $KScale::btnW
+		&& %y >= $KScale::btnY && %y < $KScale::btnY + $KScale::btnH)
+	{
+		$KM::scaleOpen = !$KM::scaleOpen;
+		return true;
+	}
+	return false;
 }
 
 // Theme preset chips: click applies. Returns true when consumed.
@@ -1708,6 +1769,8 @@ $KM::lmbDown = false;
 $KSlider::min = 0.5;     // slider left end  (50%)
 $KSlider::max = 1.5;     // slider right end (150%)
 $KSlider2::drag = false; // damage-text size slider (row 2; range set in renderSlider)
+$KM::scaleOpen = false;  // scale/theme widget starts as the collapsed pill
+$KScale::btnW = 0;
 $KSlider3::drag = false; // theme hue bar (row 3)
 $KSlider::drag = false;
 $KSlider::trackX = 0;
