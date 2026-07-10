@@ -1274,28 +1274,6 @@ function ScriptGL::playGui::onPreDraw(%dimensions)
 	kronos::applyStockHudVisibility();
 	KronosChat::applyVisibility();
 
-	// PER-FRAME REPAINT PUMP - the root cause of "jittery" HUD animation:
-	// the engine GUI is damage-driven, and in normal play something dirties
-	// PlayGui only ~9x/sec, so this ScriptGL callback ran at ~9fps no matter
-	// how smooth the clock was (khFps proved it). Toggling the value of a
-	// tiny invisible text control every draw marks the GUI dirty again, so
-	// the next rendered frame repaints and re-fires this callback - locking
-	// the whole ScriptGL HUD to the real frame rate. $pref::Kronos::smoothHud
-	// = false restores the lazy (battery-saver) behavior.
-	if($pref::Kronos::smoothHud)
-	{
-		if(!isObject(khPumpText))
-		{
-			%pump = newObject(khPumpText, FearGuiFormattedText, 1, 1, 2, 2);
-			addToSet(PlayGui, %pump);
-		}
-		$KH::pumpFlip = !$KH::pumpFlip;
-		if($KH::pumpFlip)
-			Control::setValue(khPumpText, " ");
-		else
-			Control::setValue(khPumpText, "  ");
-	}
-
 	if($KH::fpsProbe)
 		KronosHUD::fpsSample();
 	if($KM::enabled != "")
@@ -1329,10 +1307,27 @@ if($pref::Kronos::dmgTextScale == "")
 // (old kronos_textinput.dll -> unknown command -> "" -> sim-clock fallback)
 $KH::hasTicks = (glTicks() != "");
 
-// per-frame repaint pump (see onPreDraw) - on by default; set false before
-// exec (or KTheme-style live) to return to the engine's lazy ~9Hz redraws
-if($pref::Kronos::smoothHud == "")
-	$pref::Kronos::smoothHud = true;
+// HUD UPDATE RATE - the root cause of "jittery" HUD animation: Hudbot only
+// calls the ScriptGL onDraw hooks every $ScriptGL::Latency MILLISECONDS
+// (default 100 = ~10fps), replaying the last frame's GL calls in between
+// ("carbon copied" per the Hudbot docs). khFps measured exactly that. 15ms
+// is the documented floor (~60+/sec); we default there and persist a knob:
+//   KronosHUD::setHudFps(30);   // budget machines - halves script cost
+if($pref::Kronos::hudLatency == "")
+	$pref::Kronos::hudLatency = 15;
+$ScriptGL::Latency = $pref::Kronos::hudLatency;
+
+function KronosHUD::setHudFps(%fps)
+{
+	if(%fps < 1 || %fps == "")
+		%fps = 60;
+	%lat = floor(1000 / %fps);
+	if(%lat < 15)
+		%lat = 15;   // Hudbot's documented minimum useful interval
+	$pref::Kronos::hudLatency = %lat;
+	$ScriptGL::Latency = %lat;
+	echo("KronosHUD: ScriptGL latency " @ %lat @ " ms (~" @ floor(1000 / %lat) @ " fps)");
+}
 
 $KHF::Max = 8;      // concurrent floats
 $KHF::life = 1.4;   // seconds on screen
