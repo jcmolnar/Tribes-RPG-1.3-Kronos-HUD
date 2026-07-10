@@ -269,13 +269,13 @@ function KronosChat::render(%sw, %sh)
 		%bgA = 70;
 		if(%up)
 			%bgA = 130;
-		glColor4ub(10, 12, 20, %bgA);
+		glColor4ub($KT::bgR, $KT::bgG, $KT::bgB, %bgA);
 		glRectangle(%x, %y, %w, %boxH);
 		if(%up)
 		{
-			glColor4ub(85, 140, 210, 200);
+			glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 200);
 			glRectangle(%x, %y, %w, 2);
-			glColor4ub(85, 140, 210, 90);
+			glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 90);
 			glRectangle(%x, %y + %boxH - 1, %w, 1);
 			glRectangle(%x, %y, 1, %boxH);
 			glRectangle(%x + %w - 1, %y, 1, %boxH);
@@ -348,7 +348,7 @@ function KronosChat::render(%sw, %sh)
 	$Panel::kchatScrShown = true;
 
 	// faint track
-	glColor4ub(120, 150, 200, 28);
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 28);
 	glRectangle(%trackX, %trackY, %scrW, %trackH);
 
 	if($KC::dlN > %visible)
@@ -364,7 +364,7 @@ function KronosChat::render(%sw, %sh)
 		%thumbA = 70;
 		if($Drag::active && $Drag::id == "kchatscr")
 			%thumbA = 150;
-		glColor4ub(150, 185, 235, %thumbA);
+		glColor4ub($KT::txR, $KT::txG, $KT::txB, %thumbA);
 		glRectangle(%trackX + 1, %thumbY, %scrW - 2, %thumbH);
 	}
 
@@ -375,9 +375,9 @@ function KronosChat::render(%sw, %sh)
 	$Panel::kchatSzW = %gz;  $Panel::kchatSzH = %gz;
 	$Panel::kchatSzShown = true;
 	if($Drag::active && $Drag::id == "kchatsz")
-		glColor4ub(150, 195, 245, 245);
+		glColor4ub($KT::hbR, $KT::hbG, $KT::hbB, 245);
 	else
-		glColor4ub(85, 140, 210, 210);
+		glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 210);
 	glRectangle(%gx, %gy, %gz, %gz);
 	glColor4ub(235, 240, 255, 220);
 	glRectangle(%gx + 3, %gy + %gz - 4, %gz - 6, 1);
@@ -397,7 +397,7 @@ function KronosChat::render(%sw, %sh)
 	$KC::bW = %bw;    $KC::bH = %bh;
 	$KC::btnShown = true;
 
-	glColor4ub(70, 115, 180, 170);
+	glColor4ub($KT::chR, $KT::chG, $KT::chB, 170);
 	glRectangle(%amX, %by, %bw, %bh);
 	glRectangle(%apX, %by, %bw, %bh);
 	glColor4ub(235, 240, 255, 240);
@@ -454,13 +454,13 @@ function KronosChat::renderComposer(%x, %yTop, %w, %font, %lineH, %pad)
 
 	// backdrop (brighter while focused)
 	if(%foc)
-		glColor4ub(20, 28, 45, 205);
+		glColor4ub($KT::b2R, $KT::b2G, $KT::b2B, 205);
 	else
 		glColor4ub(12, 16, 26, 135);
 	glRectangle(%x, %cy, %w, %rowH);
 	if(%foc)
 	{
-		glColor4ub(110, 165, 235, 225);
+		glColor4ub($KT::acR, $KT::acG, $KT::acB, 225);
 		glRectangle(%x, %cy, %w, 2);
 		glRectangle(%x, %cy + %rowH - 1, %w, 1);
 		glRectangle(%x, %cy, 1, %rowH);
@@ -476,7 +476,7 @@ function KronosChat::renderComposer(%x, %yTop, %w, %font, %lineH, %pad)
 	if($KC::team == 1)
 		glColor4ub(210, 90, 80, 215);    // team = red
 	else
-		glColor4ub(70, 120, 180, 205);   // all  = blue
+		glColor4ub($KT::chR, $KT::chG, $KT::chB, 205);   // all  = blue
 	glRectangle(%x + %pad, %cy + %pad, %chipW, %lineH);
 	glColor4ub(240, 245, 255, 248);
 	glDrawString(%x + %pad + %pad, %cy + %pad, %lbl);

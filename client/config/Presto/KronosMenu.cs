@@ -263,6 +263,7 @@ function onMouseActive(%isActive)
 	{
 		$KSlider::drag = false;    // cursor went away mid-drag
 		$KSlider2::drag = false;
+		$KSlider3::drag = false;
 		KronosMenu::dragEnd();
 		$KC::scroll = 0;           // chat jumps back to newest when cursor hides
 
@@ -287,11 +288,13 @@ function onMouseMove(%x, %y)
 	$KM::mouseX = %x;
 	$KM::mouseY = %y;
 
-	// live drag of the UI-scale / dmg-text sliders, or of a panel being moved
+	// live drag of the UI-scale / dmg-text / hue sliders, or a panel move
 	if($KSlider::drag)
 		KronosMenu::sliderSet(%x);
 	else if($KSlider2::drag)
 		KronosMenu::slider2Set(%x);
+	else if($KSlider3::drag)
+		KronosMenu::slider3Set(%x);
 	else if($Drag::active)
 		KronosMenu::dragMove(%x, %y);
 }
@@ -304,6 +307,7 @@ function onMouseLMB(%isDown)
 	{
 		$KSlider::drag = false;   // release ends any slider/panel drag
 		$KSlider2::drag = false;
+		$KSlider3::drag = false;
 		KronosMenu::dragEnd();
 		return;
 	}
@@ -322,6 +326,16 @@ function onMouseLMB(%isDown)
 	{
 		$KSlider2::drag = true;
 		KronosMenu::slider2Set($KM::mouseX);
+		return;
+	}
+
+	// Theme preset chips + hue bar (row 3 of the same widget)
+	if($KM::mouseOn && $KM::enabled && KronosMenu::themeClick($KM::mouseX, $KM::mouseY))
+		return;
+	if($KM::mouseOn && $KM::enabled && KronosMenu::slider3Hit($KM::mouseX, $KM::mouseY))
+	{
+		$KSlider3::drag = true;
+		KronosMenu::slider3Set($KM::mouseX);
 		return;
 	}
 
@@ -619,7 +633,7 @@ function KronosMenu::render(%dimensions)
 	{
 		if(%hovPanel == "menu" && %i == %hovRow)
 		{
-			glColor4ub(120, 170, 235, 55);
+			glColor4ub($KT::hvR, $KT::hvG, $KT::hvB, 55);
 			glRectangle($KML::mx + 2, %iy, %wm - 4, %rowH);
 		}
 		else
@@ -631,7 +645,7 @@ function KronosMenu::render(%dimensions)
 				glRectangle($KML::mx + 2, %iy, %wm - 4, %rowH);
 			}
 		}
-		glColor4ub(70, 115, 180, 150);
+		glColor4ub($KT::chR, $KT::chG, $KT::chB, 150);
 		glRectangle($KML::mx + %pad, %iy + 2, %chipW, %rowH - 4);
 		%iy += %rowH;
 	}
@@ -642,12 +656,12 @@ function KronosMenu::render(%dimensions)
 	{
 		if($KM::selId != "" && $KM::plId[%i] == $KM::selId)
 		{
-			glColor4ub(85, 140, 210, 70);
+			glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 70);
 			glRectangle($KML::px + 2, %iy, %wp - 4, %rowH);
 		}
 		else if(%hovPanel == "players" && %i == %hovRow)
 		{
-			glColor4ub(120, 170, 235, 55);
+			glColor4ub($KT::hvR, $KT::hvG, $KT::hvB, 55);
 			glRectangle($KML::px + 2, %iy, %wp - 4, %rowH);
 		}
 		else
@@ -759,7 +773,7 @@ function KronosMenu::render(%dimensions)
 		%lvText = "Lv " @ $KM::plLvl[%i];
 		if($KM::plRL[%i] > 0)
 			%lvText = %lvText @ " R" @ $KM::plRL[%i];
-		glColor4ub(170, 200, 240, 220);
+		glColor4ub($KT::txR, $KT::txG, $KT::txB, 220);
 		glDrawString(%lvX, %ty, %lvText);
 
 		glColor4ub(200, 210, 225, 210);
@@ -786,7 +800,7 @@ function KronosMenu::render(%dimensions)
 				continue;
 			if(%i == 1)
 			{
-				glColor4ub(170, 200, 240, 245);
+				glColor4ub($KT::txR, $KT::txG, $KT::txB, 245);
 				glSetFont("Verdana", %fontInfo, $GLEX_SMOOTH, 1);
 			}
 			else
@@ -805,20 +819,20 @@ function KronosMenu::render(%dimensions)
 function KronosMenu::drawPanelBody(%x, %y, %w, %h, %pad, %titleH)
 {
 	// body
-	glColor4ub(12, 14, 22, 238);
+	glColor4ub($KT::bgR, $KT::bgG, $KT::bgB, 238);
 	glRectangle(%x, %y, %w, %h);
 
 	// accent border: top bar + thin sides/bottom
-	glColor4ub(85, 140, 210, 220);
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 220);
 	glRectangle(%x, %y, %w, 2);
-	glColor4ub(85, 140, 210, 90);
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 90);
 	glRectangle(%x, %y + %h - 1, %w, 1);
 	glRectangle(%x, %y, 1, %h);
 	glRectangle(%x + %w - 1, %y, 1, %h);
 
 	if(%titleH > 0)
 	{
-		glColor4ub(85, 140, 210, 140);
+		glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 140);
 		glRectangle(%x + %pad, %y + %titleH - 2, %w - (%pad * 2), 1);
 	}
 }
@@ -853,7 +867,7 @@ function KronosMenu::renderSlider(%sw, %sh)
 	%pad   = floor(%sw * 0.008 * %k);
 	if(%pad < 4)
 		%pad = 4;
-	%h = (%lineH * 4) + (%pad * 2);   // 2 rows: UI Scale + Dmg Text
+	%h = (%lineH * 6) + (%pad * 2);   // 3 rows: UI Scale + Dmg Text + Theme
 	// movable position: X defaults to centered ("c") until dragged
 	if($pref::Kronos::sliderX == "c" || $pref::Kronos::sliderX == "")
 		%x = floor((%sw - %w) / 2);
@@ -919,13 +933,13 @@ function KronosMenu::renderSlider(%sw, %sh)
 
 	glColor4ub(0, 0, 0, 150);
 	glRectangle(%trackX, %trackY, %trackW, %trackH);
-	glColor4ub(85, 140, 210, 180);
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 180);
 	glRectangle(%trackX, %trackY, floor(%trackW * %frac), %trackH);
 
 	if(%hot)
-		glColor4ub(150, 195, 245, 245);
+		glColor4ub($KT::hbR, $KT::hbG, $KT::hbB, 245);
 	else
-		glColor4ub(120, 170, 235, 220);
+		glColor4ub($KT::hvR, $KT::hvG, $KT::hvB, 220);
 	glRectangle(%knobX, %knobY, %knobW, %knobH);
 
 	// ---- text pass ----
@@ -986,6 +1000,117 @@ function KronosMenu::renderSlider(%sw, %sh)
 	glColor4ub(235, 240, 255, 240);
 	glSetFont("Verdana", %font, $GLEX_SMOOTH, 1);
 	glDrawString(%x + %pad, %y + %pad + (%lineH * 2) + floor(%pad * 0.2), "Dmg Text  " @ floor((%val2 * 100) + 0.5) @ "%");
+
+	// ---- theme row (row 3): preset chips + custom hue bar ----
+	// Chips apply KTheme::set(blue/rpg/green); dragging the rainbow bar is
+	// the "color wheel" - KTheme::hue(0-360) generates a full custom palette.
+	%tLabY = %y + %pad + (%lineH * 4);
+	%chipH = floor(%lineH * 0.7);
+	%chipY = %tLabY + floor((%lineH - %chipH) / 2);
+	%chipW = floor(%trackW * 0.14);
+	%chipGap = floor(%pad * 0.8);
+	%chipX0 = %x + %pad + floor(%trackW * 0.34);
+
+	%hueY = %y + %pad + (%lineH * 5) + floor((%lineH - %trackH) / 2);
+	%hueH = %trackH + 2;
+
+	// stash hit geometry
+	$KTheB::y = %chipY;  $KTheB::h = %chipH;  $KTheB::w = %chipW;
+	$KTheB::x0 = %chipX0;  $KTheB::gap = %chipGap;
+	$KSlider3::trackX = %trackX;
+	$KSlider3::trackW = %trackW;
+	$KSlider3::hitX0 = %trackX - %knobW;
+	$KSlider3::hitX1 = %trackX + %trackW + %knobW;
+	$KSlider3::hitY0 = %hueY - %pad;
+	$KSlider3::hitY1 = %hueY + %hueH + %pad;
+
+	glDisable($GL_TEXTURE_2D);
+	glBlendFunc($GL_SRC_ALPHA, $GL_ONE_MINUS_SRC_ALPHA);
+
+	// preset chips (their own accent colors; white outline = active)
+	%themes = "blue rpg green";
+	%chipC[0] = "110 165 235";
+	%chipC[1] = "200 165 110";
+	%chipC[2] = "110 205 130";
+	for(%ci = 0; %ci < 3; %ci++)
+	{
+		%cx = %chipX0 + (%ci * (%chipW + %chipGap));
+		glColor4ub(getWord(%chipC[%ci], 0), getWord(%chipC[%ci], 1), getWord(%chipC[%ci], 2), 235);
+		glRectangle(%cx, %chipY, %chipW, %chipH);
+		if($pref::Kronos::theme == GetWord(%themes, %ci)
+			|| ($pref::Kronos::theme == "" && %ci == 0))
+		{
+			glColor4ub(255, 255, 255, 245);
+			glRectangle(%cx, %chipY, %chipW, 1);
+			glRectangle(%cx, %chipY + %chipH - 1, %chipW, 1);
+			glRectangle(%cx, %chipY, 1, %chipH);
+			glRectangle(%cx + %chipW - 1, %chipY, 1, %chipH);
+		}
+	}
+
+	// hue bar: 24 colored segments across 0-360
+	%segW = %trackW / 24;
+	for(%si = 0; %si < 24; %si++)
+	{
+		%rgb = KTheme::hsv(%si * 15, 0.65, 0.9);
+		glColor4ub(getWord(%rgb, 0), getWord(%rgb, 1), getWord(%rgb, 2), 220);
+		glRectangle(%trackX + floor(%si * %segW), %hueY, floor(%segW) + 1, %hueH);
+	}
+	// marker when a custom hue is active
+	if(String::findSubStr($pref::Kronos::theme, "hue:") == 0)
+	{
+		%mh = String::getSubStr($pref::Kronos::theme, 4, 10);
+		%mx = %trackX + floor(%trackW * (%mh / 360));
+		glColor4ub(255, 255, 255, 245);
+		glRectangle(%mx - 1, %hueY - 2, 3, %hueH + 4);
+	}
+
+	glColor4ub(235, 240, 255, 240);
+	glSetFont("Verdana", %font, $GLEX_SMOOTH, 1);
+	glDrawString(%x + %pad, %tLabY + floor(%pad * 0.2), "Theme");
+}
+
+// Theme preset chips: click applies. Returns true when consumed.
+function KronosMenu::themeClick(%x, %y)
+{
+	if($KTheB::w < 1)
+		return false;
+	if(%y < $KTheB::y || %y >= $KTheB::y + $KTheB::h)
+		return false;
+	%themes = "blue rpg green";
+	for(%ci = 0; %ci < 3; %ci++)
+	{
+		%cx = $KTheB::x0 + (%ci * ($KTheB::w + $KTheB::gap));
+		if(%x >= %cx && %x < %cx + $KTheB::w)
+		{
+			KTheme::set(GetWord(%themes, %ci));
+			return true;
+		}
+	}
+	return false;
+}
+
+// Hue bar: map mouse x to 0-360 and apply the custom palette live.
+function KronosMenu::slider3Hit(%x, %y)
+{
+	if($KSlider3::hitX1 <= $KSlider3::hitX0)
+		return false;
+	if(%x >= $KSlider3::hitX0 && %x <= $KSlider3::hitX1
+		&& %y >= $KSlider3::hitY0 && %y <= $KSlider3::hitY1)
+		return true;
+	return false;
+}
+
+function KronosMenu::slider3Set(%x)
+{
+	if($KSlider3::trackW < 1)
+		return;
+	%frac = (%x - $KSlider3::trackX) / $KSlider3::trackW;
+	if(%frac < 0)
+		%frac = 0;
+	if(%frac > 1)
+		%frac = 1;
+	KTheme::hue(%frac * 360);
 }
 
 // Is (x,y) on the damage-text slider? Geometry stashed by renderSlider.
@@ -1413,11 +1538,11 @@ function KronosMenu::renderChatGrip(%sw, %sh)
 	glDisable($GL_TEXTURE_2D);
 	glBlendFunc($GL_SRC_ALPHA, $GL_ONE_MINUS_SRC_ALPHA);
 	if($Drag::active && $Drag::id == "chat")
-		glColor4ub(120, 170, 235, 230);
+		glColor4ub($KT::hvR, $KT::hvG, $KT::hvB, 230);
 	else
-		glColor4ub(70, 115, 180, 200);
+		glColor4ub($KT::chR, $KT::chG, $KT::chB, 200);
 	glRectangle(%cx, %cy, %gw, %gh);
-	glColor4ub(85, 140, 210, 235);
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 235);
 	glRectangle(%cx, %cy, %gw, 2);
 
 	glColor4ub(235, 240, 255, 240);
@@ -1579,6 +1704,7 @@ $KM::lmbDown = false;
 $KSlider::min = 0.5;     // slider left end  (50%)
 $KSlider::max = 1.5;     // slider right end (150%)
 $KSlider2::drag = false; // damage-text size slider (row 2; range set in renderSlider)
+$KSlider3::drag = false; // theme hue bar (row 3)
 $KSlider::drag = false;
 $KSlider::trackX = 0;
 $KSlider::trackW = 0;

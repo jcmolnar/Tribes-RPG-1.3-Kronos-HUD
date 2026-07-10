@@ -504,11 +504,11 @@ function KronosShop::renderTip(%sw, %sh)
 
 	glDisable($GL_TEXTURE_2D);
 	glBlendFunc($GL_SRC_ALPHA, $GL_ONE_MINUS_SRC_ALPHA);
-	glColor4ub(16, 20, 34, 244);
+	glColor4ub($KT::bgR, $KT::bgG, $KT::bgB, 244);
 	glRectangle(%x, %y, %w, %h);
-	glColor4ub(110, 165, 235, 220);
+	glColor4ub($KT::acR, $KT::acG, $KT::acB, 220);
 	glRectangle(%x, %y, %w, 1);
-	glColor4ub(110, 165, 235, 100);
+	glColor4ub($KT::acR, $KT::acG, $KT::acB, 100);
 	glRectangle(%x, %y + %h - 1, %w, 1);
 	glRectangle(%x, %y, 1, %h);
 	glRectangle(%x + %w - 1, %y, 1, %h);
@@ -550,9 +550,9 @@ function KronosShop::renderBankAmt(%sw, %sh)
 	// backdrop + border
 	glColor4ub(15, 20, 34, 242);
 	glRectangle(%x, %y, %w, %h);
-	glColor4ub(110, 165, 235, 235);
+	glColor4ub($KT::acR, $KT::acG, $KT::acB, 235);
 	glRectangle(%x, %y, %w, 2);
-	glColor4ub(110, 165, 235, 110);
+	glColor4ub($KT::acR, $KT::acG, $KT::acB, 110);
 	glRectangle(%x, %y + %h - 1, %w, 1);
 	glRectangle(%x, %y, 1, %h);
 	glRectangle(%x + %w - 1, %y, 1, %h);
@@ -566,9 +566,9 @@ function KronosShop::renderBankAmt(%sw, %sh)
 	%cy += %lineH + floor(%pad * 0.5);
 
 	// input box + the digits (KronosInput::drawText scrolls long values itself)
-	glColor4ub(8, 11, 18, 235);
+	glColor4ub($KT::bgR, $KT::bgG, $KT::bgB, 235);
 	glRectangle(%tx, %cy, %avail, %fh);
-	glColor4ub(85, 140, 210, 150);
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 150);
 	glRectangle(%tx, %cy, %avail, 1);
 	glRectangle(%tx, %cy + %fh - 1, %avail, 1);
 	KronosInput::drawText(%tx + 5, %cy + floor(%pad * 0.4), %avail - 10, %font);
@@ -686,15 +686,15 @@ function KronosShop::renderPane(%p, %px, %py, %title)
 	glDisable($GL_TEXTURE_2D);
 	glBlendFunc($GL_SRC_ALPHA, $GL_ONE_MINUS_SRC_ALPHA);
 
-	glColor4ub(12, 14, 22, 238);
+	glColor4ub($KT::bgR, $KT::bgG, $KT::bgB, 238);
 	glRectangle(%px, %y, %w, %ph);
-	glColor4ub(85, 140, 210, 220);
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 220);
 	glRectangle(%px, %y, %w, 2);
-	glColor4ub(85, 140, 210, 90);
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 90);
 	glRectangle(%px, %y + %ph - 1, %w, 1);
 	glRectangle(%px, %y, 1, %ph);
 	glRectangle(%px + %w - 1, %y, 1, %ph);
-	glColor4ub(85, 140, 210, 140);
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 140);
 	glRectangle(%px + %pad, %y + %titleH - 2, %w - (%pad * 2), 1);
 
 	// search (filter) row box - between the title and the item rows
@@ -704,19 +704,19 @@ function KronosShop::renderPane(%p, %px, %py, %title)
 	%fbH = %rowH - 3;
 	%fw = %w - (%pad * 2);
 	if(%foc)
-		glColor4ub(20, 28, 45, 215);
+		glColor4ub($KT::b2R, $KT::b2G, $KT::b2B, 215);
 	else
-		glColor4ub(8, 11, 18, 170);
+		glColor4ub($KT::bgR, $KT::bgG, $KT::bgB, 170);
 	glRectangle(%fx, %fy, %fw, %fbH);
 	if(%foc)
 	{
-		glColor4ub(110, 165, 235, 220);
+		glColor4ub($KT::acR, $KT::acG, $KT::acB, 220);
 		glRectangle(%fx, %fy, %fw, 1);
 		glRectangle(%fx, %fy + %fbH - 1, %fw, 1);
 	}
 	else
 	{
-		glColor4ub(85, 140, 210, 70);
+		glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 70);
 		glRectangle(%fx, %fy, %fw, 1);
 		glRectangle(%fx, %fy + %fbH - 1, %fw, 1);
 	}
@@ -745,18 +745,18 @@ function KronosShop::renderPane(%p, %px, %py, %title)
 			%r = $KS::dispRef[%p, %d];
 			if(%r == $KS::sel[%p] && $KS::sel[%p] != -1)
 			{
-				glColor4ub(85, 140, 210, 80);
+				glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 80);
 				glRectangle(%px + 2, %iy, %w - 4, %rowH);
 			}
 			else if(%s == %hovSlot)
 			{
-				glColor4ub(120, 170, 235, 45);
+				glColor4ub($KT::hvR, $KT::hvG, $KT::hvB, 45);
 				glRectangle(%px + 2, %iy, %w - 4, %rowH);
 			}
 		}
 		else
 		{
-			glColor4ub(70, 115, 180, 60);
+			glColor4ub($KT::chR, $KT::chG, $KT::chB, 60);
 			glRectangle(%px + 2, %iy, %w - 4, %rowH);
 		}
 		%iy += %rowH;
@@ -819,7 +819,7 @@ function KronosShop::renderPane(%p, %px, %py, %title)
 			%dragging = ($Drag::active && $Drag::id == "sbst");
 		}
 
-		glColor4ub(120, 150, 200, 30);
+		glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 30);
 		glRectangle(%trackX, %trackY, %scrW, %trackH);
 
 		%thumbH = floor(%trackH * %visible / %total);
@@ -835,7 +835,7 @@ function KronosShop::renderPane(%p, %px, %py, %title)
 		%thumbA = 75;
 		if(%dragging)
 			%thumbA = 155;
-		glColor4ub(150, 185, 235, %thumbA);
+		glColor4ub($KT::txR, $KT::txG, $KT::txB, %thumbA);
 		glRectangle(%trackX + 1, %thumbY, %scrW - 2, %thumbH);
 	}
 	else if(%p == "inv")
@@ -889,7 +889,7 @@ function KronosShop::renderPane(%p, %px, %py, %title)
 		%ty = %iy + floor((%rowH - %fontItem) / 2) - 1;
 		if($KS::dispType[%p, %d] == "head")
 		{
-			glColor4ub(170, 200, 240, 240);
+			glColor4ub($KT::txR, $KT::txG, $KT::txB, 240);
 			glDrawString(%px + %pad, %ty, $KS::dispRef[%p, %d]);
 		}
 		else
@@ -940,7 +940,7 @@ function KronosShop::button(%x, %y, %label, %act, %rowH, %font)
 	%bw = %tw + floor($KSL::pad * 1.2);
 	%bh = %rowH - 4;
 
-	glColor4ub(70, 115, 180, 160);
+	glColor4ub($KT::chR, $KT::chG, $KT::chB, 160);
 	glRectangle(%x, %y + 2, %bw, %bh);
 
 	%i = $KS::btnN;
@@ -1274,6 +1274,32 @@ function KronosShop::pumpWheel()
 			$KC::scroll = 0;
 	}
 }
+
+// ============================================
+// Mouse wheel weapon-switch gate
+// ============================================
+// The physical wheel drives TWO independent input paths: the DirectInput
+// zaxis binding (nextWeapon/prevWeapon, bound in autoexec.cs/config.cs) AND
+// the Win32 WM_MOUSEWHEEL -> glPollWheel seam that pumpWheel drains above.
+// While the HUD cursor is up we want the wheel to scroll the shop/bank/chat
+// pane WITHOUT also cycling weapons, so we re-bind the zaxis to this gated
+// wrapper: it's a no-op when the GUI cursor is active, and a plain weapon
+// switch otherwise. This rebind runs AFTER autoexec.cs's binds (KronosShop
+// is exec'd later in autoexec), so it wins.
+function Kronos::wheelWeapon(%dir)
+{
+	if($KM::mouseOn && $KM::enabled)
+		return;
+	if(%dir > 0)
+		nextWeapon();
+	else
+		prevWeapon();
+}
+
+// Make sure we edit the same map autoexec bound to, then override the wheel.
+editActionMap("playMap.sae");
+bindCommand(mouse0, zaxis0, TO, "Kronos::wheelWeapon(1);");  // wheel forward
+bindCommand(mouse0, zaxis1, TO, "Kronos::wheelWeapon(-1);"); // wheel backward
 
 // ============================================
 // Right-click: quick bank transfer (full stack, no amount modal)

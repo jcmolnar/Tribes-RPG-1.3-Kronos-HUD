@@ -73,6 +73,92 @@ function KronosVideo::reapply()
 }
 
 // ============================================
+// HUD color theme
+// ============================================
+// Every Kronos panel draws its chrome (borders, hovers, chips, tinted text,
+// dark backdrops) from the $KT::* role variables set here, so one theme
+// switch recolors the whole suite. Functional colors (HP green/red, mana
+// blue, XP gold, enemy red, damage floats) are deliberately NOT themed.
+//   Presets:  KTheme::set(blue);  KTheme::set(rpg);  KTheme::set(green);
+//   Custom :  KTheme::hue(215);   (any hue 0-360 - the widget's rainbow bar)
+// Persisted in $pref::Kronos::theme. Picker UI lives in the scale widget.
+
+// h 0-360, s/v 0-1 -> "r g b" bytes
+function KTheme::hsv(%h, %s, %v)
+{
+	%h = %h - (floor(%h / 360) * 360);
+	if(%h < 0)
+		%h = %h + 360;
+	%c = %v * %s;
+	%hp = %h / 60;
+	%m2 = %hp - (floor(%hp / 2) * 2);
+	%d = %m2 - 1;
+	if(%d < 0)
+		%d = -%d;
+	%x = %c * (1 - %d);
+	%sec = floor(%hp);
+	if(%sec == 0)      { %r = %c; %g = %x; %b = 0;  }
+	else if(%sec == 1) { %r = %x; %g = %c; %b = 0;  }
+	else if(%sec == 2) { %r = 0;  %g = %c; %b = %x; }
+	else if(%sec == 3) { %r = 0;  %g = %x; %b = %c; }
+	else if(%sec == 4) { %r = %x; %g = 0;  %b = %c; }
+	else               { %r = %c; %g = 0;  %b = %x; }
+	%m = %v - %c;
+	return floor((%r + %m) * 255) @ " " @ floor((%g + %m) * 255) @ " " @ floor((%b + %m) * 255);
+}
+
+function KTheme::roles(%ac, %dm, %hv, %hb, %ch, %tx, %bg, %b2)
+{
+	$KT::acR = getWord(%ac, 0);  $KT::acG = getWord(%ac, 1);  $KT::acB = getWord(%ac, 2);
+	$KT::dmR = getWord(%dm, 0);  $KT::dmG = getWord(%dm, 1);  $KT::dmB = getWord(%dm, 2);
+	$KT::hvR = getWord(%hv, 0);  $KT::hvG = getWord(%hv, 1);  $KT::hvB = getWord(%hv, 2);
+	$KT::hbR = getWord(%hb, 0);  $KT::hbG = getWord(%hb, 1);  $KT::hbB = getWord(%hb, 2);
+	$KT::chR = getWord(%ch, 0);  $KT::chG = getWord(%ch, 1);  $KT::chB = getWord(%ch, 2);
+	$KT::txR = getWord(%tx, 0);  $KT::txG = getWord(%tx, 1);  $KT::txB = getWord(%tx, 2);
+	$KT::bgR = getWord(%bg, 0);  $KT::bgG = getWord(%bg, 1);  $KT::bgB = getWord(%bg, 2);
+	$KT::b2R = getWord(%b2, 0);  $KT::b2G = getWord(%b2, 1);  $KT::b2B = getWord(%b2, 2);
+}
+
+function KTheme::apply()
+{
+	%t = $pref::Kronos::theme;
+	if(%t == "")
+		%t = "blue";
+	if(%t == "rpg")
+		KTheme::roles("200 165 110", "165 130 85", "215 180 120", "235 205 150",
+			"140 110 70", "225 205 170", "22 17 11", "36 28 18");
+	else if(%t == "green")
+		KTheme::roles("110 205 130", "85 165 105", "125 215 145", "155 240 175",
+			"70 150 90", "175 225 185", "10 18 12", "18 32 22");
+	else if(String::findSubStr(%t, "hue:") == 0)
+	{
+		%h = String::getSubStr(%t, 4, 10);
+		KTheme::roles(KTheme::hsv(%h, 0.53, 0.92), KTheme::hsv(%h, 0.57, 0.82),
+			KTheme::hsv(%h, 0.49, 0.94), KTheme::hsv(%h, 0.38, 0.98),
+			KTheme::hsv(%h, 0.61, 0.71), KTheme::hsv(%h, 0.28, 0.94),
+			KTheme::hsv(%h, 0.45, 0.09), KTheme::hsv(%h, 0.50, 0.16));
+	}
+	else // "blue" - the original palette, byte-for-byte
+		KTheme::roles("110 165 235", "85 140 210", "120 170 235", "150 195 245",
+			"70 115 180", "170 200 240", "10 12 20", "20 28 45");
+}
+
+function KTheme::set(%name)
+{
+	$pref::Kronos::theme = %name;
+	KTheme::apply();
+	echo("KTheme: theme = " @ %name);
+}
+
+function KTheme::hue(%h)
+{
+	$pref::Kronos::theme = "hue:" @ floor(%h);
+	KTheme::apply();
+}
+
+KTheme::apply();   // colors must exist before any panel renders
+
+// ============================================
 // Remote handlers - receive data from server
 // ============================================
 
@@ -451,7 +537,7 @@ function kronos::backdrop()
 	glBlendFunc($GL_SRC_ALPHA, $GL_ONE_MINUS_SRC_ALPHA);
 
 	// Dark fill
-	glColor4ub(10, 12, 20, 155);
+	glColor4ub($KT::bgR, $KT::bgG, $KT::bgB, 155);
 	vhud::render_box("pos", "size");
 
 	// Subtle border (1px lines)
@@ -462,7 +548,7 @@ function kronos::backdrop()
 	%w = getword(%size, 0);
 	%h = getword(%size, 1);
 
-	glColor4ub(70, 110, 170, 70);
+	glColor4ub($KT::chR, $KT::chG, $KT::chB, 70);
 	glRectangle(%x, %y, %w, 1);
 	glRectangle(%x, %y + %h - 1, %w, 1);
 	glRectangle(%x, %y, 1, %h);
@@ -760,12 +846,12 @@ function kronos::examine_render(%sw, %sh)
 	glDisable($GL_TEXTURE_2D);
 	glBlendFunc($GL_SRC_ALPHA, $GL_ONE_MINUS_SRC_ALPHA);
 
-	glColor4ub(10, 12, 20, floor(%alpha * 0.8));
+	glColor4ub($KT::bgR, $KT::bgG, $KT::bgB, floor(%alpha * 0.8));
 	glRectangle(%x0, %y0, %w, %boxH);
 
-	glColor4ub(85, 140, 210, floor(%alpha * 0.85));
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, floor(%alpha * 0.85));
 	glRectangle(%x0, %y0, %w, 2);
-	glColor4ub(85, 140, 210, floor(%alpha * 0.35));
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, floor(%alpha * 0.35));
 	glRectangle(%x0, %y0 + %boxH - 1, %w, 1);
 	glRectangle(%x0, %y0, 1, %boxH);
 	glRectangle(%x0 + %w - 1, %y0, 1, %boxH);
@@ -908,12 +994,12 @@ function kronos::weapon_onrender()
 	glDisable($GL_TEXTURE_2D);
 	glBlendFunc($GL_SRC_ALPHA, $GL_ONE_MINUS_SRC_ALPHA);
 
-	glColor4ub(10, 12, 20, floor(%alpha * 0.72));
+	glColor4ub($KT::bgR, $KT::bgG, $KT::bgB, floor(%alpha * 0.72));
 	glRectangle(%bx, %by, %bw, %useH);
 
-	glColor4ub(85, 140, 210, floor(%alpha * 0.85));
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, floor(%alpha * 0.85));
 	glRectangle(%bx, %by, %bw, 2);
-	glColor4ub(85, 140, 210, floor(%alpha * 0.35));
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, floor(%alpha * 0.35));
 	glRectangle(%bx, %by + %useH - 1, %bw, 1);
 	glRectangle(%bx, %by, 1, %useH);
 	glRectangle(%bx + %bw - 1, %by, 1, %useH);
@@ -976,7 +1062,7 @@ function kronos::target_onrender()
 	glBlendFunc($GL_SRC_ALPHA, $GL_ONE_MINUS_SRC_ALPHA);
 
 	%bgAlpha = floor(%alpha * 0.65);
-	glColor4ub(10, 12, 20, %bgAlpha);
+	glColor4ub($KT::bgR, $KT::bgG, $KT::bgB, %bgAlpha);
 	vhud::render_box("pos", "size");
 
 	// Subtle border (red for enemies, green for NPCs)

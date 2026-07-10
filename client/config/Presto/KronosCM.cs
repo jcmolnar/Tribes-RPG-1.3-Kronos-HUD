@@ -237,11 +237,11 @@ function KronosCM::render(%sw, %sh)
 	glBlendFunc($GL_SRC_ALPHA, $GL_ONE_MINUS_SRC_ALPHA);
 
 	// backdrop + border
-	glColor4ub(14, 18, 30, 242);
+	glColor4ub($KT::bgR, $KT::bgG, $KT::bgB, 242);
 	glRectangle(%x, %y, %w, %h);
-	glColor4ub(110, 165, 235, 235);
+	glColor4ub($KT::acR, $KT::acG, $KT::acB, 235);
 	glRectangle(%x, %y, %w, 2);
-	glColor4ub(110, 165, 235, 110);
+	glColor4ub($KT::acR, $KT::acG, $KT::acB, 110);
 	glRectangle(%x, %y + %h - 1, %w, 1);
 	glRectangle(%x, %y, 1, %h);
 	glRectangle(%x + %w - 1, %y, 1, %h);
@@ -253,7 +253,7 @@ function KronosCM::render(%sw, %sh)
 	glColor4ub(235, 240, 255, 245);
 	glSetFont("Verdana", floor(%font * 0.92), $GLEX_SMOOTH, 0);
 	glDrawString(%x + %pad, %y + floor(%pad * 0.6), %title);
-	glColor4ub(85, 140, 210, 140);
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 140);
 	glRectangle(%x + %pad, %y + %titleH - 2, %w - (%pad * 2), 1);
 
 	// rows: hotkey letter (gold) + label (white leaf / blue submenu, with a ">"
@@ -270,11 +270,11 @@ function KronosCM::render(%sw, %sh)
 		if($KCM::rowLeaf[%r])
 			glColor4ub(225, 232, 245, 235);
 		else
-			glColor4ub(150, 215, 255, 240);
+			glColor4ub($KT::hbR, $KT::hbG, $KT::hbB, 240);
 		glDrawString(%cx + %pad + floor(%font * 1.3), %ty, $KCM::rowLabel[%r]);
 		if(!$KCM::rowLeaf[%r])
 		{
-			glColor4ub(120, 160, 210, 200);
+			glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 200);
 			glDrawString(%cx + %colW - %pad - floor(%font * 0.55), %ty, ">");
 		}
 	}
@@ -283,7 +283,7 @@ function KronosCM::render(%sw, %sh)
 	if(%cols > 1)
 	{
 		glDisable($GL_TEXTURE_2D);
-		glColor4ub(85, 140, 210, 60);
+		glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 60);
 		for(%c = 1; %c < %cols; %c++)
 			glRectangle(%x + (%c * %colW), %y + %titleH + 2, 1, (%perCol * %rowH) - 4);
 	}

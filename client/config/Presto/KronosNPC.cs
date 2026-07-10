@@ -299,11 +299,11 @@ function KronosNPC::render(%sw, %sh)
 	for(%i = 0; %i < %nOpt; %i++)
 	{
 		if(%i == %hov)
-			glColor4ub(120, 170, 235, 80);
+			glColor4ub($KT::hvR, $KT::hvG, $KT::hvB, 80);
 		else if(%i == $KNPC::optCount)
 			glColor4ub(150, 70, 70, 55);   // Goodbye row tint
 		else
-			glColor4ub(70, 115, 180, 55);
+			glColor4ub($KT::chR, $KT::chG, $KT::chB, 55);
 		glRectangle($KNPC::optX, %iy + 1, $KNPC::optW, %optH - 2);
 		%iy += %optH;
 	}

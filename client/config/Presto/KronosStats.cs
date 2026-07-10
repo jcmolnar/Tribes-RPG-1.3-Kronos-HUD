@@ -171,11 +171,11 @@ function KronosStats::render(%sw, %sh)
 	// ---- rects ----
 	glDisable($GL_TEXTURE_2D);
 	glBlendFunc($GL_SRC_ALPHA, $GL_ONE_MINUS_SRC_ALPHA);
-	glColor4ub(10, 12, 20, 150);
+	glColor4ub($KT::bgR, $KT::bgG, $KT::bgB, 150);
 	glRectangle(%x, %y, %w, %h);
-	glColor4ub(85, 140, 210, 130);
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 130);
 	glRectangle(%x, %y, %w, 1);
-	glColor4ub(85, 140, 210, 55);
+	glColor4ub($KT::dmR, $KT::dmG, $KT::dmB, 55);
 	glRectangle(%x, %y + %h - 1, %w, 1);
 	glRectangle(%x, %y, 1, %h);
 	glRectangle(%x + %w - 1, %y, 1, %h);
@@ -187,7 +187,7 @@ function KronosStats::render(%sw, %sh)
 		%cxX = %x + %w - %pad - %cz;
 		%cxR = %cxX - %cz - 2;
 		%cy = %y + %pad;
-		glColor4ub(70, 115, 180, 190);
+		glColor4ub($KT::chR, $KT::chG, $KT::chB, 190);
 		glRectangle(%cxR, %cy, %cz, %cz);
 		glColor4ub(150, 70, 70, 190);
 		glRectangle(%cxX, %cy, %cz, %cz);
@@ -198,7 +198,7 @@ function KronosStats::render(%sw, %sh)
 	// ---- text ----
 	%tx = %x + %pad;
 	%ty = %y + %pad;
-	glColor4ub(170, 200, 240, 230);
+	glColor4ub($KT::txR, $KT::txG, $KT::txB, 230);
 	glSetFont("Verdana", %font, $GLEX_SMOOTH, 0);
 	glDrawString(%tx, %ty, %l1);
 	if($KST::btnShown)
