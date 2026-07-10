@@ -1240,7 +1240,7 @@ function KronosHUD::floatNow()
 	return $KHF::clock;
 }
 
-function KronosHUD::addFloat(%text, %viewType)
+function KronosHUD::addFloat(%text, %viewType, %dir)
 {
 	// strip <jc>/<fN>/... tags and newlines - color comes from viewType
 	%xtr = String::removeBetween(%text, "<", ">");
@@ -1252,13 +1252,36 @@ function KronosHUD::addFloat(%text, %viewType)
 	%text = String::replace(%text, "\n", "  ");
 	if(%text == "")
 		return;
+	if(%dir == "" || %dir == 0)
+		%dir = 1;   // 1 = rise (default), -1 = sink (nameplate defender)
+	%now = KronosHUD::floatNow();
+
+	// ANTI-OVERLAP CHAIN: if the previous float in this direction hasn't
+	// moved a full text-height away from the spawn line yet, start this one
+	// a text-height further back so rapid hits never overprint. Offsets are
+	// fractions of screen height; rise rate is 0.11 sh/sec (matches render).
+	%off = 0;
+	if($KHF::lastT0[%dir] != "")
+	{
+		%gap = 0.048 * $pref::Kronos::dmgTextScale;   // ~popped text height
+		%prev = $KHF::lastOff[%dir] - ((%now - $KHF::lastT0[%dir]) * 0.11);
+		if(%prev + %gap > %off)
+			%off = %prev + %gap;
+		if(%off > 0.30)
+			%off = 0.30;   // cap a machine-gun stream on screen
+	}
+	$KHF::lastT0[%dir] = %now;
+	$KHF::lastOff[%dir] = %off;
+
 	%i = $KHF::next + 0;
 	$KHF::next = %i + 1;
 	if($KHF::next >= $KHF::Max)
 		$KHF::next = 0;
 	$KHF::text[%i] = %text;
 	$KHF::view[%i] = %viewType;
-	$KHF::t0[%i] = KronosHUD::floatNow();
+	$KHF::t0[%i] = %now;
+	$KHF::off[%i] = %off;
+	$KHF::dir[%i] = %dir;
 }
 
 function KronosHUD::renderFloats(%sw, %sh)
@@ -1306,9 +1329,9 @@ function KronosHUD::renderFloats(%sw, %sh)
 		glSetFont("Verdana", %font, $GLEX_SMOOTH, 5);
 		%tw = getword(glGetStringDimensions($KHF::text[%i]), 0);
 		%x = floor((%sw - %tw) / 2);
-		// rise from just below screen center; slot-stagger so rapid hits
-		// don't overprint each other
-		%y = floor(%sh * 0.44) - floor(%age * %sh * 0.11) + (%i - floor(%i / 4) * 4) * floor(%base * 0.55);
+		// travel from just below screen center; the spawn offset chain set
+		// in addFloat keeps rapid hits from overprinting; dir -1 = sink
+		%y = floor(%sh * (0.44 + ($KHF::off[%i] * $KHF::dir[%i]))) - floor(%age * %sh * 0.11) * $KHF::dir[%i];
 		if($KHF::view[%i] == "attacker")
 			glColor4ub(255, 205, 80, %alpha);       // damage you deal - gold
 		else if($KHF::view[%i] == "defender")
@@ -1334,9 +1357,19 @@ function remoteATKText(%server, %text, %animationStyle, %viewType)
 		KronosHUD::addFloat(%text, %viewType);
 		return;
 	}
+	if(%animationStyle == "nameplate")
+	{
+		// nameplate mode: dealt damage shows on the target bubble (tgt_dmg);
+		// these floats are the damage you TAKE, which sinks downward
+		if(%viewType == "defender")
+			KronosHUD::addFloat(%text, %viewType, -1);
+		else
+			KronosHUD::addFloat(%text, %viewType);
+		return;
+	}
 	// stock validation: unknown/legacy style values fall back to the default
 	if(%animationStyle != "float" && %animationStyle != "redmoon" && %animationStyle != "wow"
-		&& %animationStyle != "test" && %animationStyle != "nameplate")
+		&& %animationStyle != "test")
 		%animationStyle = $animationStyle;
 	atktext::set(%text, %animationStyle, %viewType);
 }
