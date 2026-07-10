@@ -996,14 +996,26 @@ function kronos::target_onrender()
 	glRectangle(%bx, %by, 1, %bh);
 	glRectangle(%bx + %bw - 1, %by, 1, %bh);
 
-	// --- Target name ---
+	// --- Target name (centered in the bubble) ---
+	// Was drawn at the fixed tgt_name_pos anchor, which sat off-center in the
+	// frame. Center horizontally on the frame width; vertically center in the
+	// whole bubble for NPCs (name-only) or in the space above the HP bar.
+	%nameFont = vhud::render_value("tgt_name_font");
+	glSetFont("Verdana", %nameFont, $GLEX_SMOOTH, 5);
+	%ntw = getword(glGetStringDimensions($KH::targetName), 0);
+	%nx = %bx + floor((%bw - %ntw) / 2);
+	if(%isNPC)
+		%nameAreaH = %bh;
+	else
+		%nameAreaH = getword(vhud::render_value("tgt_bar_pos"), 1) - %by;
+	if(%nameAreaH < %nameFont)
+		%nameAreaH = %nameFont;
+	%ny = %by + floor((%nameAreaH - %nameFont) / 2);
 	if(%isNPC)
 		glColor4ub(195, 235, 205, %alpha);
 	else
 		glColor4ub(255, 195, 195, %alpha);
-	%namePos = vhud::render_value("tgt_name_pos");
-	glSetFont("Verdana", vhud::render_value("tgt_name_font"), $GLEX_SMOOTH, 5);
-	glDrawString(getword(%namePos, 0), getword(%namePos, 1), $KH::targetName);
+	glDrawString(%nx, %ny, $KH::targetName);
 
 	// NPC frame is just the nameplate
 	if(%isNPC)
@@ -1176,6 +1188,125 @@ function ScriptGL::playGui::onPreDraw(%dimensions)
 		vhud::render( KronosMenu::screenDim(%dimensions) );
 	else
 		vhud::render(%dimensions);
+
+	// FloatStyle3 damage text draws LAST so it sits on top of the target
+	// frame / nameplates (the old engine-control path drew under everything)
+	%fd = %dimensions;
+	if($KM::enabled != "")
+		%fd = KronosMenu::screenDim(%dimensions);
+	KronosHUD::renderFloats(getword(%fd, 0), getword(%fd, 1));
+}
+
+// ============================================
+// FloatStyle3 ("pop") damage text - ScriptGL floater
+// ============================================
+// ATKText's pop style drew through engine FearGuiFormattedText controls,
+// which render UNDER every ScriptGL overlay (so damage numbers hid behind
+// the target nameplate) and have no scalable font. Route the "pop" style
+// to this ScriptGL floater instead: draws on top, rises + fades, and the
+// size follows $pref::Kronos::dmgTextScale (persisted; tune live with
+// KronosHUD::setDmgTextScale(1.4) etc. - separate from the UI scale).
+// All other ATKText styles keep the stock path.
+
+if($pref::Kronos::dmgTextScale == "")
+	$pref::Kronos::dmgTextScale = 1.0;
+
+$KHF::Max = 8;      // concurrent floats
+$KHF::life = 1.4;   // seconds on screen
+
+function KronosHUD::setDmgTextScale(%s)
+{
+	if(%s <= 0 || %s == "")
+		%s = 1.0;
+	$pref::Kronos::dmgTextScale = %s;
+	echo("KronosHUD: damage text scale = " @ %s);
+}
+
+function KronosHUD::addFloat(%text, %viewType)
+{
+	// strip <jc>/<fN>/... tags and newlines - color comes from viewType
+	%xtr = String::removeBetween(%text, "<", ">");
+	while(%xtr != %text)
+	{
+		%text = %xtr;
+		%xtr = String::removeBetween(%text, "<", ">");
+	}
+	%text = String::replace(%text, "\n", "  ");
+	if(%text == "")
+		return;
+	%i = $KHF::next + 0;
+	$KHF::next = %i + 1;
+	if($KHF::next >= $KHF::Max)
+		$KHF::next = 0;
+	$KHF::text[%i] = %text;
+	$KHF::view[%i] = %viewType;
+	$KHF::t0[%i] = GetSimTime();
+}
+
+function KronosHUD::renderFloats(%sw, %sh)
+{
+	%now = GetSimTime();
+	%base = floor(%sh * 0.032 * $pref::Kronos::dmgTextScale);
+	if(%base < 10)
+		%base = 10;
+	%drawn = 0;
+	for(%i = 0; %i < $KHF::Max; %i++)
+	{
+		if($KHF::text[%i] == "")
+			continue;
+		%age = %now - $KHF::t0[%i];
+		if(%age > $KHF::life)
+		{
+			$KHF::text[%i] = "";
+			continue;
+		}
+		%alpha = 240;
+		if(%age > $KHF::life - 0.5)
+		{
+			%alpha = floor(240 * ($KHF::life - %age) / 0.5);
+			if(%alpha < 0)
+				%alpha = 0;
+		}
+		// the "pop": oversized for the first 0.12s, settles to base
+		%font = %base;
+		if(%age < 0.12)
+			%font = floor(%base * (1.4 - (%age / 0.12) * 0.4));
+		glSetFont("Verdana", %font, $GLEX_SMOOTH, 5);
+		%tw = getword(glGetStringDimensions($KHF::text[%i]), 0);
+		%x = floor((%sw - %tw) / 2);
+		// rise from just below screen center; slot-stagger so rapid hits
+		// don't overprint each other
+		%y = floor(%sh * 0.44) - floor(%age * %sh * 0.11) + (%i - floor(%i / 4) * 4) * floor(%base * 0.55);
+		if($KHF::view[%i] == "attacker")
+			glColor4ub(255, 205, 80, %alpha);       // damage you deal - gold
+		else if($KHF::view[%i] == "defender")
+			glColor4ub(255, 95, 80, %alpha);        // damage you take - red
+		else
+			glColor4ub(225, 230, 240, %alpha);      // spectator - white
+		glDrawString(%x, %y, $KHF::text[%i]);
+		%drawn++;
+	}
+}
+
+// Route "pop" (FloatStyle3) to the ScriptGL floater; every other style
+// falls through to the stock ATKText engine-control path unchanged.
+// (This override loads AFTER Presto's ATKText.cs - autoexec order.)
+function remoteATKText(%server, %text, %animationStyle, %viewType)
+{
+	if(%server != 2048)
+		return;
+	if(%viewType == "" || %viewType == -1)
+		%viewType = "defender";
+	if(%animationStyle == "pop")
+	{
+		KronosHUD::addFloat(%text, %viewType);
+		return;
+	}
+	// stock validation: unknown/legacy style values fall back to the default
+	if(%animationStyle != "float" && %animationStyle != "redmoon" && %animationStyle != "wow"
+		&& %animationStyle != "test" && %animationStyle != "nameplate")
+		%animationStyle = $animationStyle;
+	atktext::set(%text, %animationStyle, %viewType);
 }
 
 // ============================================
