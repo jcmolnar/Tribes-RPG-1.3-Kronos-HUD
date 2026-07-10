@@ -740,7 +740,9 @@ function kronos::vitals_onrender()
 	// target plate, drawn just above our own "plate" (the HP bar)
 	%oPos = vhud::render_value("hp_bar_pos");
 	%oBr = vhud::render_value("hp_bar_br");
-	%oFont = floor(getword(%oBr, 1) * 0.85);
+	// hp_bar_br is the bar's bottom-right CORNER, not a size - the bar
+	// height is (brY - posY). Using brY directly made MISS half the screen.
+	%oFont = floor((getword(%oBr, 1) - getword(%oPos, 1)) * 0.85);
 	if(%oFont < 9)
 		%oFont = 9;
 	KronosHUD::renderPlateRow(getword(%oPos, 0), getword(%oPos, 1) - %oFont - 4, %oFont,
