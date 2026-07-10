@@ -262,6 +262,7 @@ function onMouseActive(%isActive)
 	if(!%isActive)
 	{
 		$KSlider::drag = false;    // cursor went away mid-drag
+		$KSlider2::drag = false;
 		KronosMenu::dragEnd();
 		$KC::scroll = 0;           // chat jumps back to newest when cursor hides
 
@@ -286,9 +287,11 @@ function onMouseMove(%x, %y)
 	$KM::mouseX = %x;
 	$KM::mouseY = %y;
 
-	// live drag of the UI-scale slider, or of a panel being moved
+	// live drag of the UI-scale / dmg-text sliders, or of a panel being moved
 	if($KSlider::drag)
 		KronosMenu::sliderSet(%x);
+	else if($KSlider2::drag)
+		KronosMenu::slider2Set(%x);
 	else if($Drag::active)
 		KronosMenu::dragMove(%x, %y);
 }
@@ -300,6 +303,7 @@ function onMouseLMB(%isDown)
 	if(!%isDown)
 	{
 		$KSlider::drag = false;   // release ends any slider/panel drag
+		$KSlider2::drag = false;
 		KronosMenu::dragEnd();
 		return;
 	}
@@ -310,6 +314,14 @@ function onMouseLMB(%isDown)
 	{
 		$KSlider::drag = true;
 		KronosMenu::sliderSet($KM::mouseX);
+		return;
+	}
+
+	// Damage-text size slider (row 2 of the same widget)
+	if($KM::mouseOn && $KM::enabled && KronosMenu::slider2Hit($KM::mouseX, $KM::mouseY))
+	{
+		$KSlider2::drag = true;
+		KronosMenu::slider2Set($KM::mouseX);
 		return;
 	}
 
@@ -841,7 +853,7 @@ function KronosMenu::renderSlider(%sw, %sh)
 	%pad   = floor(%sw * 0.008 * %k);
 	if(%pad < 4)
 		%pad = 4;
-	%h = (%lineH * 2) + (%pad * 2);
+	%h = (%lineH * 4) + (%pad * 2);   // 2 rows: UI Scale + Dmg Text
 	// movable position: X defaults to centered ("c") until dragged
 	if($pref::Kronos::sliderX == "c" || $pref::Kronos::sliderX == "")
 		%x = floor((%sw - %w) / 2);
@@ -920,6 +932,91 @@ function KronosMenu::renderSlider(%sw, %sh)
 	glColor4ub(235, 240, 255, 240);
 	glSetFont("Verdana", %font, $GLEX_SMOOTH, 1);
 	glDrawString(%x + %pad, %y + floor(%pad * 0.5), "UI Scale  " @ floor((%val * 100) + 0.5) @ "%");
+
+	// ---- damage-text size slider (row 2) ----
+	// Same widget, second track: sets $pref::Kronos::dmgTextScale live (the
+	// FloatStyle3 pop-damage size, independent of the UI scale above).
+	%track2Y = %y + %pad + (%lineH * 3) + floor((%lineH - %trackH) / 2);
+
+	%min2 = 0.5;
+	%max2 = 2.5;
+	%val2 = $pref::Kronos::dmgTextScale;
+	if(%val2 == "")
+		%val2 = 1.0;
+	if(%val2 < %min2)
+		%val2 = %min2;
+	if(%val2 > %max2)
+		%val2 = %max2;
+	%frac2 = (%val2 - %min2) / (%max2 - %min2);
+
+	%knob2X = %trackX + floor((%trackW - %knobW) * %frac2);
+	%knob2Y = %track2Y + floor(%trackH / 2) - floor(%knobH / 2);
+
+	$KSlider2::min = %min2;
+	$KSlider2::max = %max2;
+	$KSlider2::trackX = %trackX;
+	$KSlider2::trackW = %trackW;
+	$KSlider2::hitX0  = %trackX - %knobW;
+	$KSlider2::hitX1  = %trackX + %trackW + %knobW;
+	$KSlider2::hitY0  = %knob2Y - %pad;
+	$KSlider2::hitY1  = %knob2Y + %knobH + %pad;
+
+	%hot2 = false;
+	if($KSlider2::drag)
+		%hot2 = true;
+	else if($KM::mouseX >= $KSlider2::hitX0 && $KM::mouseX <= $KSlider2::hitX1
+		&& $KM::mouseY >= $KSlider2::hitY0 && $KM::mouseY <= $KSlider2::hitY1)
+		%hot2 = true;
+
+	// glDrawString above re-enabled textures - rects need them off again
+	glDisable($GL_TEXTURE_2D);
+	glBlendFunc($GL_SRC_ALPHA, $GL_ONE_MINUS_SRC_ALPHA);
+
+	glColor4ub(0, 0, 0, 150);
+	glRectangle(%trackX, %track2Y, %trackW, %trackH);
+	glColor4ub(200, 150, 60, 180);
+	glRectangle(%trackX, %track2Y, floor(%trackW * %frac2), %trackH);
+
+	if(%hot2)
+		glColor4ub(255, 210, 110, 245);
+	else
+		glColor4ub(230, 180, 80, 220);
+	glRectangle(%knob2X, %knob2Y, %knobW, %knobH);
+
+	glColor4ub(235, 240, 255, 240);
+	glSetFont("Verdana", %font, $GLEX_SMOOTH, 1);
+	glDrawString(%x + %pad, %y + %pad + (%lineH * 2) + floor(%pad * 0.2), "Dmg Text  " @ floor((%val2 * 100) + 0.5) @ "%");
+}
+
+// Is (x,y) on the damage-text slider? Geometry stashed by renderSlider.
+function KronosMenu::slider2Hit(%x, %y)
+{
+	if($KSlider2::hitX1 <= $KSlider2::hitX0)
+		return false;
+	if(%x >= $KSlider2::hitX0 && %x <= $KSlider2::hitX1
+		&& %y >= $KSlider2::hitY0 && %y <= $KSlider2::hitY1)
+		return true;
+	return false;
+}
+
+// Map a mouse x to a damage-text scale (snapped to 10% steps), apply live,
+// and pop a sample float so the size can be judged while dragging.
+function KronosMenu::slider2Set(%x)
+{
+	if($KSlider2::trackW < 1)
+		return;
+	%frac = (%x - $KSlider2::trackX) / $KSlider2::trackW;
+	if(%frac < 0)
+		%frac = 0;
+	if(%frac > 1)
+		%frac = 1;
+	%val = $KSlider2::min + (%frac * ($KSlider2::max - $KSlider2::min));
+	%val = floor((%val / 0.1) + 0.5) * 0.1;
+	if(%val != $pref::Kronos::dmgTextScale)
+	{
+		$pref::Kronos::dmgTextScale = %val;
+		KronosHUD::addFloat("123 DMG!", "attacker");   // live preview
+	}
 }
 
 // Is (x,y) on the slider? Uses the geometry stashed by renderSlider.
@@ -1481,6 +1578,7 @@ $KM::lmbDown = false;
 // UI-scale slider state
 $KSlider::min = 0.5;     // slider left end  (50%)
 $KSlider::max = 1.5;     // slider right end (150%)
+$KSlider2::drag = false; // damage-text size slider (row 2; range set in renderSlider)
 $KSlider::drag = false;
 $KSlider::trackX = 0;
 $KSlider::trackW = 0;
