@@ -1248,7 +1248,17 @@ function KronosHUD::addFloat(%text, %viewType)
 
 function KronosHUD::renderFloats(%sw, %sh)
 {
-	%now = GetSimTime();
+	// SMOOTH CLOCK: GetSimTime() advances in coarse sim ticks (~30Hz), while
+	// this renders every frame - positions computed straight from it stepped
+	// visibly ("jittery" rise). Low-pass a per-frame clock toward sim time:
+	// it advances a little every rendered frame instead of jumping per tick.
+	// Resyncs hard on any big jump (mission change / getSimTime rebase).
+	%sim = GetSimTime();
+	if($KHF::clock == "" || %sim - $KHF::clock > 1.0 || %sim - $KHF::clock < -1.0)
+		$KHF::clock = %sim;
+	else
+		$KHF::clock = $KHF::clock + ((%sim - $KHF::clock) * 0.2);
+	%now = $KHF::clock;
 	%base = floor(%sh * 0.032 * $pref::Kronos::dmgTextScale);
 	if(%base < 10)
 		%base = 10;
