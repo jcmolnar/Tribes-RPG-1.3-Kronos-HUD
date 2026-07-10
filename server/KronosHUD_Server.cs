@@ -1115,6 +1115,20 @@ function KronosHUD_LOSScan(%gen)
 		if(%pobj == "" || %pobj == -1 || %pobj == 0)
 			continue;
 
+		// Vitals freshness: the HP/MP NUMBERS are only pushed on stat-refresh
+		// events (RefreshAll / refreshClientScore), so plain damage, heals and
+		// mana drain moved the engine-driven bars but left the numeric readout
+		// stale. Piggyback a change-gated push on this 0.5s loop - it only
+		// sends when HP or MANA actually changed, so idle players cost nothing.
+		%vhp = fetchData(%cl, "HP");
+		%vmana = fetchData(%cl, "MANA");
+		if(%vhp != %cl.khudLastHP || %vmana != %cl.khudLastMana)
+		{
+			%cl.khudLastHP = %vhp;
+			%cl.khudLastMana = %vmana;
+			KronosHUD_Push(%cl);
+		}
+
 		// Raycast down the player's view
 		if(!GameBase::getLOSInfo(%pobj, $KronosHUD::LOSRange))
 		{
