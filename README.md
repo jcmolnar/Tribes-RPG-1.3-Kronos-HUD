@@ -26,6 +26,18 @@ adds keyboard text capture, which ScriptGL alone cannot do.
 
 ---
 
+## Quick install (recommended)
+
+Grab **[`KronosHUD-1.3-Client.zip`](KronosHUD-1.3-Client.zip)** — it mirrors the Tribes
+folder layout. Close Tribes, copy the zip's `config` and `Plugins` folders into your
+Tribes folder (next to `Tribes.exe`), overwrite when asked, and launch. See the zip's
+`INSTALL.txt` for the two files it replaces (`autoexec.cs`, `PluginLoader.cs`) in case
+you had customized them.
+
+The manual, merge-friendly install is described below.
+
+---
+
 ## Requirements
 
 - **Tribes 1.3 client** (the T1Vista / "Tribes Repack" Borland build — the one that loads
