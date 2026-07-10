@@ -68,7 +68,19 @@ static void flog(const char* fmt, ...) {
 static volatile int g_qhead = 0, g_qtail = 0;
 static int g_qascii[QN], g_qdik[QN];
 
+// ---- key auto-repeat state (synthesized in glTextPoll) ------------------------
+// DirectInput delivers ONE make per physical press - no auto-repeat - so holding
+// backspace deleted a single character. Record the last make here; the poll
+// synthesizes repeats while the key stays physically down (GetAsyncKeyState).
+static volatile int g_repDik = 0, g_repAscii = 0;
+static volatile unsigned long g_repNext = 0;
+#define REP_DELAY_MS  400   // standard initial auto-repeat delay
+#define REP_RATE_MS   33    // ~30 chars/sec once repeating
+
 extern "C" void __cdecl queueKey(int ascii, int dik) {   // hook -> here: pure memory op, no engine call
+    // arm auto-repeat for this key (GetTickCount is kernel32, not the engine)
+    g_repDik = dik; g_repAscii = ascii;
+    g_repNext = GetTickCount() + REP_DELAY_MS;
     int n = (g_qtail + 1) % QN;
     if (n == g_qhead) return;                 // full: drop (never blocks/crashes)
     g_qascii[g_qtail] = ascii; g_qdik[g_qtail] = dik;
@@ -135,6 +147,7 @@ __declspec(naked) void keydispatch_hook() {
 extern "C" char* __cdecl c_glTextInput(int argc, char** argv) {
     g_textInput = (argc >= 2 && argv[1] && argv[1][0] != '0') ? 1 : 0;
     if (g_textInput) { g_qhead = g_qtail = 0; }   // drop stale keys from before focus
+    g_repDik = 0;                                 // never carry auto-repeat across focus changes
     flog("glTextInput -> %d", g_textInput);
     return (char*)"";
 }
@@ -144,9 +157,29 @@ extern "C" char* __cdecl c_glTextInput(int argc, char** argv) {
 // turn an ascii code back into a char, so we hand it the char itself); "k<dik>" =
 // a non-printable key by DIK scancode. The script loops this each frame and calls
 // ScriptGL::onChar(<char>) / ScriptGL::onKey(<dik>).
+// Repeat only keys that are safe to repeat in a text field: printable chars,
+// backspace (14), delete (211), left/right arrows (203/205). NEVER Enter (28)
+// or Esc (1) - repeating those would re-fire submit/close actions.
+static int repDikAllowed(int ascii, int dik) {
+    if (ascii >= 32 && ascii < 127) return 1;
+    return (dik == 14 || dik == 211 || dik == 203 || dik == 205);
+}
+
 extern "C" char* __cdecl c_glTextPoll(int argc, char** argv) {
     static char buf[16];
-    if (g_qhead == g_qtail) return (char*)"";       // empty
+    if (g_qhead == g_qtail) {                       // empty: maybe synthesize a repeat
+        if (!g_textInput || !g_repDik) return (char*)"";
+        if (!repDikAllowed(g_repAscii, g_repDik)) { g_repDik = 0; return (char*)""; }
+        UINT vk = MapVirtualKeyA((UINT)g_repDik, 1 /*MAPVK_VSC_TO_VK*/);
+        if (!vk || !(GetAsyncKeyState((int)vk) & 0x8000)) { g_repDik = 0; return (char*)""; }
+        unsigned long now = GetTickCount();
+        if ((long)(now - g_repNext) < 0) return (char*)"";   // still in the delay/rate window
+        g_repNext = now + REP_RATE_MS;
+        int a = g_repAscii, d = g_repDik;
+        if (a >= 32 && a < 127) { buf[0] = 'c'; buf[1] = (char)a; buf[2] = 0; }
+        else { _snprintf(buf, sizeof(buf), "k%d", d); buf[sizeof(buf)-1] = 0; }
+        return buf;
+    }
     int a = g_qascii[g_qhead], d = g_qdik[g_qhead];
     g_qhead = (g_qhead + 1) % QN;
     if (a >= 32 && a < 127) { buf[0] = 'c'; buf[1] = (char)a; buf[2] = 0; }
