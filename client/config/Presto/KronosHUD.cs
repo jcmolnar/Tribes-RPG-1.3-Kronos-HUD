@@ -1214,6 +1214,10 @@ function ScriptGL::playGui::onPreDraw(%dimensions)
 if($pref::Kronos::dmgTextScale == "")
 	$pref::Kronos::dmgTextScale = 1.0;
 
+// probe once at load: does the DLL provide the millisecond clock?
+// (old kronos_textinput.dll -> unknown command -> "" -> sim-clock fallback)
+$KH::hasTicks = (glTicks() != "");
+
 $KHF::Max = 8;      // concurrent floats
 $KHF::life = 1.4;   // seconds on screen
 
@@ -1223,6 +1227,17 @@ function KronosHUD::setDmgTextScale(%s)
 		%s = 1.0;
 	$pref::Kronos::dmgTextScale = %s;
 	echo("KronosHUD: damage text scale = " @ %s);
+}
+
+// Animation clock for the floats. glTicks() (kronos_textinput.dll) is a real
+// millisecond wall clock - perfectly smooth per rendered frame. Older DLLs
+// without it fall back to the sim clock low-passed in renderFloats (smoother
+// than raw GetSimTime, but velocity still wobbles at the ~30Hz tick rate).
+function KronosHUD::floatNow()
+{
+	if($KH::hasTicks)
+		return glTicks() / 1000;
+	return $KHF::clock;
 }
 
 function KronosHUD::addFloat(%text, %viewType)
@@ -1243,22 +1258,26 @@ function KronosHUD::addFloat(%text, %viewType)
 		$KHF::next = 0;
 	$KHF::text[%i] = %text;
 	$KHF::view[%i] = %viewType;
-	$KHF::t0[%i] = GetSimTime();
+	$KHF::t0[%i] = KronosHUD::floatNow();
 }
 
 function KronosHUD::renderFloats(%sw, %sh)
 {
-	// SMOOTH CLOCK: GetSimTime() advances in coarse sim ticks (~30Hz), while
-	// this renders every frame - positions computed straight from it stepped
-	// visibly ("jittery" rise). Low-pass a per-frame clock toward sim time:
-	// it advances a little every rendered frame instead of jumping per tick.
-	// Resyncs hard on any big jump (mission change / getSimTime rebase).
-	%sim = GetSimTime();
-	if($KHF::clock == "" || %sim - $KHF::clock > 1.0 || %sim - $KHF::clock < -1.0)
-		$KHF::clock = %sim;
+	// SMOOTH CLOCK: prefer the DLL's real millisecond clock (glTicks);
+	// otherwise low-pass the coarse ~30Hz sim clock so positions advance
+	// every rendered frame instead of stepping per tick. Hard resync on any
+	// big jump (mission change / getSimTime rebase).
+	if($KH::hasTicks)
+		%now = glTicks() / 1000;
 	else
-		$KHF::clock = $KHF::clock + ((%sim - $KHF::clock) * 0.2);
-	%now = $KHF::clock;
+	{
+		%sim = GetSimTime();
+		if($KHF::clock == "" || %sim - $KHF::clock > 1.0 || %sim - $KHF::clock < -1.0)
+			$KHF::clock = %sim;
+		else
+			$KHF::clock = $KHF::clock + ((%sim - $KHF::clock) * 0.2);
+		%now = $KHF::clock;
+	}
 	%base = floor(%sh * 0.032 * $pref::Kronos::dmgTextScale);
 	if(%base < 10)
 		%base = 10;

@@ -259,6 +259,20 @@ static void wheelEnsureHook() {
     if (th) CloseHandle(th); else { flog("wheel: thread FAILED"); }
 }
 
+// ---- glTicks(): milliseconds since the plugin loaded (real wall clock).
+// The script sim clock advances in coarse ~30Hz ticks, which made per-frame
+// animations (damage floats) stutter. SESSION-RELATIVE so the value stays
+// small enough for TorqueScript's 32-bit floats to keep ms precision
+// (raw GetTickCount loses sub-ms accuracy after ~4.6h of Windows uptime).
+static DWORD g_ticks0 = 0;
+extern "C" char* __cdecl c_glTicks(int argc, char** argv) {
+    static char buf[16];
+    if (!g_ticks0) g_ticks0 = GetTickCount();
+    _snprintf(buf, sizeof(buf), "%u", (unsigned)(GetTickCount() - g_ticks0));
+    buf[sizeof(buf)-1] = 0;
+    return buf;
+}
+
 // ---- glMouseRMB(): "1" while the right mouse button is physically down, "" else.
 // Script edge-detects per frame; GetAsyncKeyState reads hardware state directly.
 extern "C" char* __cdecl c_glMouseRMB(int argc, char** argv) {
@@ -290,6 +304,7 @@ HANDLER(h_glSetTalkKey, c_glSetTalkKey)
 HANDLER(h_glPollHotkey, c_glPollHotkey)
 HANDLER(h_glPollWheel,  c_glPollWheel)
 HANDLER(h_glMouseRMB,   c_glMouseRMB)
+HANDLER(h_glTicks,      c_glTicks)
 
 // regCmd(name, handler): engine getNumClients StringCallback registration, byte-for-byte.
 __declspec(naked) void regCmd(const char* /*name*/, void* /*handler*/) {
@@ -315,7 +330,8 @@ extern "C" void __cdecl doRegister() {
     regCmd("glPollHotkey", (void*)&h_glPollHotkey);
     regCmd("glPollWheel",  (void*)&h_glPollWheel);
     regCmd("glMouseRMB",   (void*)&h_glMouseRMB);
-    flog("registered glTextInput + glTextPoll + glSetTalkKey + glPollHotkey + glPollWheel + glMouseRMB");
+    regCmd("glTicks",      (void*)&h_glTicks);
+    flog("registered glTextInput + glTextPoll + glSetTalkKey + glPollHotkey + glPollWheel + glMouseRMB + glTicks");
 }
 
 // plugin descriptor vtable[0] = init; loader calls it (desc in EAX) AFTER console ready
