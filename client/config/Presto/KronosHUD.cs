@@ -1273,6 +1273,29 @@ function ScriptGL::playGui::onPreDraw(%dimensions)
 	// SetVisible(false) on an already-hidden control is a cheap no-op.
 	kronos::applyStockHudVisibility();
 	KronosChat::applyVisibility();
+
+	// PER-FRAME REPAINT PUMP - the root cause of "jittery" HUD animation:
+	// the engine GUI is damage-driven, and in normal play something dirties
+	// PlayGui only ~9x/sec, so this ScriptGL callback ran at ~9fps no matter
+	// how smooth the clock was (khFps proved it). Toggling the value of a
+	// tiny invisible text control every draw marks the GUI dirty again, so
+	// the next rendered frame repaints and re-fires this callback - locking
+	// the whole ScriptGL HUD to the real frame rate. $pref::Kronos::smoothHud
+	// = false restores the lazy (battery-saver) behavior.
+	if($pref::Kronos::smoothHud)
+	{
+		if(!isObject(khPumpText))
+		{
+			%pump = newObject(khPumpText, FearGuiFormattedText, 1, 1, 2, 2);
+			addToSet(PlayGui, %pump);
+		}
+		$KH::pumpFlip = !$KH::pumpFlip;
+		if($KH::pumpFlip)
+			Control::setValue(khPumpText, " ");
+		else
+			Control::setValue(khPumpText, "  ");
+	}
+
 	if($KH::fpsProbe)
 		KronosHUD::fpsSample();
 	if($KM::enabled != "")
@@ -1305,6 +1328,11 @@ if($pref::Kronos::dmgTextScale == "")
 // probe once at load: does the DLL provide the millisecond clock?
 // (old kronos_textinput.dll -> unknown command -> "" -> sim-clock fallback)
 $KH::hasTicks = (glTicks() != "");
+
+// per-frame repaint pump (see onPreDraw) - on by default; set false before
+// exec (or KTheme-style live) to return to the engine's lazy ~9Hz redraws
+if($pref::Kronos::smoothHud == "")
+	$pref::Kronos::smoothHud = true;
 
 $KHF::Max = 8;      // concurrent floats
 $KHF::life = 1.4;   // seconds on screen
