@@ -29,8 +29,8 @@ adds keyboard text capture, which ScriptGL alone cannot do.
 ## Quick install (recommended)
 
 Grab **[`KronosHUD-1.3-Client.zip`](KronosHUD-1.3-Client.zip)** — it mirrors the Tribes
-folder layout. Close Tribes, copy the zip's `config` and `Plugins` folders into your
-Tribes folder (next to `Tribes.exe`), overwrite when asked, and launch. See the zip's
+folder layout. Close Tribes, copy the zip's `config`, `Plugins` **and `base`** folders into
+your Tribes folder (next to `Tribes.exe`), overwrite when asked, and launch. See the zip's
 `INSTALL.txt` for the two files it replaces (`autoexec.cs`, `PluginLoader.cs`) in case
 you had customized them.
 
@@ -62,6 +62,12 @@ this repo.
 
 2. **Plugin** — copy the text-input plugin:
    - `client/Plugins/kronos_textinput.dll` → `Plugins\`
+
+2b. **Score-screen gui files** — copy `client/base/gui/Score.gui` and
+   `client/base/gui/lr_score.gui` → `base\gui\` (overwrite). These are the stock
+   score screens with every control moved off-screen; **without them TAB opens the
+   old stock scoreboard over the new menu**. (The dialog still opens invisibly —
+   that's what keeps the engine cursor up.) Back up your originals to revert.
 
 3. **Enable the plugin** — merge the block from
    `client/Plugins/Scripts/PluginLoader.snippet.cs` into your
@@ -107,6 +113,10 @@ client/
       KronosStats.cs               session stats panel (XP/hr, gold/hr), draggable
       ChatFilter.cs                chat category filter toggles (ads/cast/loot), persisted
       KronosGUI_README.md          deep design notes, prefs list, console helpers
+  base/
+    gui/
+      Score.gui, lr_score.gui      patched score screens (controls moved off-screen so the
+                                   stock TAB scoreboard is invisible under the new menu)
   Plugins/
     kronos_textinput.dll           native text-input plugin (keyboard capture for the composer)
     Scripts/
