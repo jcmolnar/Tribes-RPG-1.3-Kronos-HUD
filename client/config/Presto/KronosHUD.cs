@@ -30,6 +30,48 @@ $pref::PacketSize = 450;
 // saved back to ClientPrefs.cs so it sticks.
 $pref::VideoFullScreenDriver = "OpenGL";
 
+// The HUD draws through OpenGL, so the WINDOWED driver must be OpenGL too
+// (stock default is Software - the HUD would simply be invisible).
+if($pref::VideoWindowedDriver == "" || $pref::VideoWindowedDriver == "Software")
+	$pref::VideoWindowedDriver = "OpenGL";
+
+// Boot-renderer fix: stock 1.3 applies the video prefs (OptionsVideo::apply)
+// immediately after creating the window - too early for the OpenGL device to
+// take - so the game can boot into the SOFTWARE renderer even though
+// ClientPrefs saves $pref::VideoWindowedDriver = "OpenGL". A GL-drawn HUD is
+// invisible in software mode. Hook OptionsVideo::validate (called right
+// before that startup apply, when the scheduler exists) and arm a one-shot
+// delayed re-apply. Body mirrors the stock Options.cs validate exactly.
+function OptionsVideo::validate()
+{
+	if($pref::VideoFullScreen == "") $pref::VideoFullScreen = "FALSE";
+	if($pref::VideoFullScreenDriver == "")
+	{
+		if(isGfxDriver(MainWindow, "Glide")) $pref::VideoFullScreenDriver = "Glide";
+		else $pref::VideoFullScreenDriver = "Software";
+	}
+	if($pref::VideoWindowedDriver == "") $pref::VideoWindowedDriver = "Software";
+	if($pref::VideoFullScreenRes == "") $pref::VideoFullScreenRes = "640x480";
+	if($pref::VideoGamma == "") $pref::VideoGamma = "0.5";
+
+	if(!$KV::reapplyArmed)
+	{
+		$KV::reapplyArmed = true;
+		schedule("KronosVideo::reapply();", 3);
+	}
+}
+
+function KronosVideo::reapply()
+{
+	// only re-assert in windowed mode, and never downgrade to Software
+	if(String::ICompare($pref::VideoFullScreen, "TRUE") == 0)
+		return;
+	if($pref::VideoWindowedDriver == "" || $pref::VideoWindowedDriver == "Software")
+		return;
+	echo("KronosVideo: re-applying windowed driver '" @ $pref::VideoWindowedDriver @ "'");
+	setWindowedDevice(MainWindow, $pref::VideoWindowedDriver);
+}
+
 // ============================================
 // Remote handlers - receive data from server
 // ============================================
