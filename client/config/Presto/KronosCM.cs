@@ -56,13 +56,20 @@ function KronosCM::subTarget(%action)
 }
 
 // Read the current menu's enabled entries into the row arrays.
+// NOTE: entry KEYS are not always 0..N-1 - Menu::AddChoice keys numerically
+// (MenuDeus), but Menu::AddLetter keys entries by their hotkey LETTER
+// (menuChat and all its chat/animation submenus). Enumerate the underlying
+// List NODES (0..MaxNode, insertion order) and read each node's element key.
 function KronosCM::buildRows()
 {
 	%menu = KronosCM::curMenu();
-	%n = Menu::GetNumChoices(%menu);
+	%maxN = List::MaxNode(%menu);
 	$KCM::rowN = 0;
-	for(%e = 0; %e < %n; %e++)
+	for(%node = 0; %node <= %maxN; %node++)
 	{
+		%e = List::GetNode(%menu, %node);
+		if(String::len(%e) < 1)   // freed node (string test: entry key "0" is valid)
+			continue;
 		if(!Menu::GetEnabled(%menu, %e))
 			continue;
 		%text = Menu::GetText(%menu, %e);
