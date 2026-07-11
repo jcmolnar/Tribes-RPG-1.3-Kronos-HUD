@@ -1329,6 +1329,9 @@ if($KH::hideStockWeapon == "")
 
 function kronos::applyStockHudVisibility()
 {
+	// master kill switch (khOff/khOn): never hide the stock bars while off
+	if($pref::Kronos::hudOff)
+		return;
 	// Only replace the stock HUDs once a Kronos server is actually pushing data.
 	// This function is called EVERY frame from onPreDraw, so gating on $KH::hasData
 	// makes the HUD self-disable on non-Kronos servers: the stock health/energy/weapon
@@ -1377,6 +1380,13 @@ Event::Attach(eventScreenModeChanged, "KronosMenu::applyChatPos();", attachKrono
 // guard against it being absent so a HUD-only setup still works.
 function ScriptGL::playGui::onPreDraw(%dimensions)
 {
+	// master kill switch (khOff/khOn): skip ALL HUD overlay drawing -
+	// vitals/target/cast/info panels and the damage floats. The TAB
+	// menu/shop/NPC panels (onPostDraw) stay: the stock score gui is
+	// binary-patched off-screen, so they remain the only menu UI.
+	if($pref::Kronos::hudOff)
+		return;
+
 	// Re-assert stock-HUD + stock-chat hiding EVERY frame (ported from 1.40):
 	// the engine WAKES the stock bars when the player SPAWNS, which happens
 	// AFTER eventGuiOpen, so the one-shot hide gets undone on spawn/respawn.
@@ -1592,6 +1602,14 @@ function remoteATKText(%server, %text, %animationStyle, %viewType)
 		return;
 	if(%viewType == "" || %viewType == -1)
 		%viewType = "defender";
+	// khOff(): route our custom styles back to the stock engine-control path
+	if($pref::Kronos::hudOff
+		&& (%animationStyle == "pop" || %animationStyle == "nameplate"))
+	{
+		%animationStyle = $animationStyle;
+		if(%animationStyle == "pop" || %animationStyle == "nameplate")
+			%animationStyle = "float";   // stock default is also custom -> stock float
+	}
 	if(%animationStyle == "pop")
 	{
 		KronosHUD::addFloat(%text, %viewType);
@@ -1709,6 +1727,45 @@ function khReload()
 	exec("Presto\\KronosCM.cs");
 	exec("Presto\\KronosStats.cs");
 	echo("khReload: Kronos suite re-exec'd");
+}
+
+// ============================================
+// Master kill switch: khOff(); / khOn(); / khToggle();
+// ============================================
+// khOff() returns to the stock GUI: all HUD overlays stop drawing
+// (vitals/target/cast/info/damage floats), the stock health/energy/
+// weapon bars and stock chat come back, Y opens stock chat, and pop/
+// nameplate damage text falls back to the stock float style. Persists
+// ($pref::Kronos::hudOff). EXCEPTION: the TAB menu / shop / NPC panels
+// stay Kronos-styled - the stock score gui is binary-patched off-screen
+// (base\gui .stockbak files must be restored manually for that).
+function khOff()
+{
+	$pref::Kronos::hudOff = true;
+	kronos::showStockHuds();          // applyStockHudVisibility is now inert
+	KronosChat::applyVisibility();    // stock chat back
+	KronosChat::bindTalkKey();        // Y -> stock chat
+	KronosMenu::savePrefs();
+	echo("KronosHUD: OFF - stock HUD/chat restored (TAB menu stays Kronos-");
+	echo("  styled; the stock score gui is patched off-screen). khOn(); to re-enable.");
+}
+
+function khOn()
+{
+	$pref::Kronos::hudOff = false;
+	kronos::applyStockHudVisibility();
+	KronosChat::applyVisibility();
+	KronosChat::bindTalkKey();
+	KronosMenu::savePrefs();
+	echo("KronosHUD: ON");
+}
+
+function khToggle()
+{
+	if($pref::Kronos::hudOff)
+		khOn();
+	else
+		khOff();
 }
 
 echo("KronosHUD: ScriptGL RPG HUD loaded");

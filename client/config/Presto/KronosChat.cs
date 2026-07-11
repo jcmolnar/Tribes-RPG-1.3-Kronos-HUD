@@ -189,7 +189,7 @@ function KronosChat::rewrap(%w, %font)
 // ============================================
 function KronosChat::render(%sw, %sh)
 {
-	if(!$pref::Kronos::chatEnabled)
+	if(!$pref::Kronos::chatEnabled || $pref::Kronos::hudOff)
 	{
 		$Panel::kchatShown = false;
 		$Panel::kchatSzShown = false;
@@ -584,7 +584,7 @@ function KronosChat::toggleTeam()
 // buttons/composer win over the box's move handle). Returns true if hit.
 function KronosChat::handleClick(%x, %y)
 {
-	if(!$pref::Kronos::chatEnabled)
+	if(!$pref::Kronos::chatEnabled || $pref::Kronos::hudOff)
 		return false;
 
 	// composer row (chat input)
@@ -694,7 +694,7 @@ function KronosChat::lastMsg()
 // ============================================
 function KronosChat::applyVisibility()
 {
-	if($pref::Kronos::chatEnabled)
+	if($pref::Kronos::chatEnabled && !$pref::Kronos::hudOff)
 		Control::SetVisible(chatDisplayHud, false);
 	else
 		Control::SetVisible(chatDisplayHud, true);
@@ -829,7 +829,7 @@ function KronosChat::bindTalkKey()
 	// So the native plugin SWALLOWS Y (DIK 0x15 = 21) before the engine's action map
 	// and flags us; we poll glPollHotkey() in render() and open the composer. Setting
 	// the hotkey to 0 lets Y fall back to stock chat (when the overlay is disabled).
-	if($pref::Kronos::chatEnabled)
+	if($pref::Kronos::chatEnabled && !$pref::Kronos::hudOff)
 		glSetTalkKey(21);
 	else
 		glSetTalkKey(0);
