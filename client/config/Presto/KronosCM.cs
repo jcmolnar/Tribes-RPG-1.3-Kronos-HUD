@@ -18,13 +18,18 @@
 $KCM::root = MenuDeus;     // the Ctrl+V root menu (bareword -> the string "MenuDeus")
 
 $KCM::open = false;
+$KCM::curRoot = "";        // root of the currently open menu (MenuDeus or menuChat)
 $KCM::navN = 0;            // depth; $KCM::navMenu[0..navN-1] = menu-name stack
 $KCM::rowN = 0;            // rows for the current level
 
 function KronosCM::curMenu()
 {
 	if($KCM::navN <= 0)
-		return $KCM::root;
+	{
+		if($KCM::curRoot == "")
+			return $KCM::root;
+		return $KCM::curRoot;
+	}
 	return $KCM::navMenu[$KCM::navN - 1];
 }
 
@@ -83,18 +88,24 @@ function KronosCM::buildRows()
 	}
 }
 
-function KronosCM::open()
+function KronosCM::open(%root)
 {
+	if(%root == "")
+		%root = $KCM::root;
 	// Non-Kronos servers: MenuDeus is a client-side DeusRPGPack menu, so it
 	// still exists off-mod and Ctrl+V would pop a useless RPG spell menu on
 	// a stock/other server. Gate on $KH::hasData (set true only once a Kronos
 	// server pushes remoteKronosHUD) - the same "are we on Kronos" signal the
 	// HUD/Stats self-disable on. Off-mod, Ctrl+V falls away with no overlay.
-	if(!$KH::hasData)
+	// (menuChat - the plain-V animations/shortcuts menu - is generic Presto,
+	// so it opens on any server: the stock chat menu is hidden whenever the
+	// Kronos chat overlay is on, not just on Kronos.)
+	if(String::Compare(%root, $KCM::root) == 0 && !$KH::hasData)
 		return;
 	if(KronosInput::anyFocused())     // we own the key seam while open
 		KronosInput::blur();
 	$KCM::open = true;
+	$KCM::curRoot = %root;
 	$KCM::navN = 0;
 	KronosCM::buildRows();
 	glTextInput(1);                   // capture hotkeys + Esc (kronos_textinput.dll)
@@ -108,12 +119,24 @@ function KronosCM::close()
 	glTextInput(0);
 }
 
-function KronosCM::toggle()
+function KronosCM::toggle(%root)
 {
+	if(%root == "")
+		%root = $KCM::root;
+	// khOff(): the stock chat menu control is visible again - use it
+	if($pref::Kronos::hudOff)
+	{
+		Menu::Display(%root);
+		return;
+	}
 	if($KCM::open)
+	{
+		%wasRoot = $KCM::curRoot;
 		KronosCM::close();
-	else
-		KronosCM::open();
+		if(String::Compare(%wasRoot, %root) == 0)
+			return;               // same key = close; different key = switch menus
+	}
+	KronosCM::open(%root);
 }
 
 // Up one level; at root, close.
@@ -296,8 +319,12 @@ function KronosCM::render(%sw, %sh)
 }
 
 // ============================================
-// Bind Ctrl+V to our menu (overrides Chat.cs's Menu::Display bind; re-runs each launch)
+// Bind Ctrl+V (Deus quick menu) + plain V (Presto chat/animation menu) to
+// our overlay (overrides config.cs/Chat.cs Menu::Display binds; re-runs each
+// launch). Both render through the same ScriptGL menu - the stock versions
+// draw in chatDisplayHud, which the Kronos chat overlay hides.
 // ============================================
 bindCommand(keyboard0, make, control, "v", TO, "KronosCM::toggle();");
+bindCommand(keyboard0, make, "v", TO, "KronosCM::toggle(menuChat);");
 
-echo("KronosCM: ScriptGL quick menu loaded - reads live Presto Menu (Ctrl+V)");
+echo("KronosCM: ScriptGL quick menu loaded - reads live Presto Menu (V / Ctrl+V)");
