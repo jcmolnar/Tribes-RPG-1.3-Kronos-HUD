@@ -887,30 +887,16 @@ function KronosMenu::renderSlider(%sw, %sh)
 	if(%font < 9)
 		%font = 9;
 
-	// ---- collapsed pill (default): "Scale" one-liner, click to expand ----
-	// The full 3-row widget covered a lot of screen; it now pops down only
-	// while adjusting. State is per-session ($KM::scaleOpen), starts closed.
+	// ---- closed (default): draw nothing. The panel is opened from the
+	// "UI" button in the chat window (KronosChat toggles $KM::scaleOpen).
 	if(!$KM::scaleOpen)
 	{
-		%h = %lineH + (%pad * 2);
-		// clicking the pill expands; no move handle / slider hits while closed
 		$Panel::uisShown = false;
-		$KScale::btnX = %x;  $KScale::btnY = %y;
-		$KScale::btnW = %w;  $KScale::btnH = %h;
+		$KScale::btnW = 0;   // no on-screen expand target while closed
 		$KSlider::hitX0 = 0;   $KSlider::hitX1 = 0;
 		$KSlider2::hitX0 = 0;  $KSlider2::hitX1 = 0;
 		$KSlider3::hitX0 = 0;  $KSlider3::hitX1 = 0;
 		$KTheB::w = 0;
-
-		glDisable($GL_TEXTURE_2D);
-		glBlendFunc($GL_SRC_ALPHA, $GL_ONE_MINUS_SRC_ALPHA);
-		KronosMenu::drawPanelBody(%x, %y, %w, %h, %pad, 0);
-
-		glColor4ub(235, 240, 255, 235);
-		glSetFont("Verdana", %font, $GLEX_SMOOTH, 1);
-		%pillText = "Scale / Theme  -  click to adjust";
-		%ptw = getword(glGetStringDimensions(%pillText), 0);
-		glDrawString(%x + floor((%w - %ptw) / 2), %y + floor((%h - %font) / 2), %pillText);
 		return;
 	}
 
@@ -1769,7 +1755,7 @@ $KM::lmbDown = false;
 $KSlider::min = 0.5;     // slider left end  (50%)
 $KSlider::max = 1.5;     // slider right end (150%)
 $KSlider2::drag = false; // damage-text size slider (row 2; range set in renderSlider)
-$KM::scaleOpen = false;  // scale/theme widget starts as the collapsed pill
+$KM::scaleOpen = false;  // scale/theme panel starts hidden; chat "UI" button opens it
 $KScale::btnW = 0;
 $KSlider3::drag = false; // theme hue bar (row 3)
 $KSlider::drag = false;

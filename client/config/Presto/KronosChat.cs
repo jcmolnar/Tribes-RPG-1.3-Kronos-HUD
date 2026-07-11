@@ -431,6 +431,18 @@ function KronosChat::render(%sw, %sh)
 		$KC::fbX[$KC::fbN] = %fx;  $KC::fbCat[$KC::fbN] = %cat;
 		$KC::fbN++;
 	}
+
+	// "UI" button (leftmost): pops the Scale / Theme panel open/closed
+	// (the panel itself is KronosMenu's slider widget, drawn outside chat)
+	%fx = %fx - %fbw - 2;
+	$KC::uiX = %fx;  $KC::uiY = %by;  $KC::uiW = %fbw;  $KC::uiH = %bh;
+	if($KM::scaleOpen)
+		glColor4ub($KT::hbR, $KT::hbG, $KT::hbB, 210);   // lit while open
+	else
+		glColor4ub(45, 55, 75, 180);
+	glRectangle(%fx, %by, %fbw, %bh);
+	glColor4ub(235, 240, 255, 245);
+	glDrawString(%fx + 3, %by + floor(%bh * 0.16), "UI");
 }
 
 // ============================================
@@ -606,6 +618,13 @@ function KronosChat::handleClick(%x, %y)
 		&& %y >= $KC::apY && %y < $KC::apY + $KC::bH)
 	{
 		KronosChat::setFont($pref::Kronos::chatFontH + 0.0015);
+		return true;
+	}
+	// "UI" button - toggle the Scale / Theme panel
+	if(%x >= $KC::uiX && %x < $KC::uiX + $KC::uiW
+		&& %y >= $KC::uiY && %y < $KC::uiY + $KC::uiH)
+	{
+		$KM::scaleOpen = !$KM::scaleOpen;
 		return true;
 	}
 	// chat-filter toggle buttons (left of A-)
